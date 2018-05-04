@@ -154,7 +154,14 @@ BEGIN
 
 DELIMITER ;
 
+
+
+-- -- 
+-- -- Si / No Espanniol
+-- -- 
+
 DELIMITER $$
+
 
 DROP FUNCTION IF EXISTS `getBooleanMX`$$
 
@@ -3437,6 +3444,7 @@ DELIMITER ;
 -- -- 
 -- -- Purga Valores de Recibos
 -- -- 31 Octubre 2017
+-- -- Las fechas 0000-00-00 no funcionan en ubuntu 16.04
 -- -- 
 DELIMITER $$
 
@@ -3449,12 +3457,12 @@ IF NEW.tiempo <= 0 THEN
 	SET NEW.tiempo = UNIX_TIMESTAMP();
 END IF;
 
-IF NEW.fecha_operacion = '0000-00-00' THEN
+IF CONVERT(NEW.fecha_operacion, CHAR(12)) = '0000-00-00' THEN
 	SET NEW.fecha_operacion = CURDATE();
 END IF;
 
 
-IF NEW.fecha_de_registro = '0000-00-00' THEN
+IF CONVERT(NEW.fecha_de_registro, CHAR(12))= '0000-00-00' THEN
 	SET NEW.fecha_de_registro = CURDATE();
 END IF;
 
@@ -3692,7 +3700,7 @@ END $$
 DELIMITER ;
 
 -- -- 
--- -- genera-tiempo usuarios web notas 
+-- -- llena datos del plan de pagos
 -- -- 21-marzo-2018
 -- -- 
 DELIMITER $$
@@ -3711,6 +3719,8 @@ SET NEW.total_base=NEW.capital+NEW.interes+NEW.impuesto;
 SET NEW.total_c_otros=NEW.total_base+NEW.ahorro+NEW.otros;
 
 SET NEW.total_c_castigos=NEW.total_c_otros+NEW.penas+NEW.gtoscbza+NEW.mora+NEW.iva_castigos-NEW.descuentos;
+
+SET NEW.estatusactivo = 1;
 
 END $$
 
@@ -3779,5 +3789,139 @@ END $$
 DELIMITER ;
 
 
+
+-- - --------------------------------
+-- - Funcion que obtiene busca si un recibo existe en nomina
+-- - 14/Abril/2018
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getExistsInNomina`$$
+
+CREATE FUNCTION `getExistsInNomina`(IDNom INT(10), IDRec BIGINT(25)) RETURNS BOOLEAN
+BEGIN
+	
+	DECLARE IDCnt INT(4) DEFAULT 0;
+	DECLARE IDRes BOOLEAN DEFAULT FALSE;
+	
+	SET IDCnt = ( SELECT COUNT(`idempresas_cobranza`) FROM `empresas_cobranza` WHERE `clave_de_nomina`=IDNom AND `recibo`= IDRec );
+	 
+	IF ISNULL(IDCnt) THEN
+		SET IDCnt = 0;
+	END IF;
+	IF IDCnt > 0 THEN
+		SET IDRes = TRUE;
+	END IF;
+	
+	RETURN IDRes;
+    END$$
+
+DELIMITER ;
+
+
+-- -- 
+-- -- Actualiza el recibo si es de empresa
+-- -- 14 Abril 2018
+-- -- 
+
+DELIMITER $$
+
+DROP TRIGGER IF EXISTS `operaciones_recibos_BEFORE_UPDATE`$$
+
+CREATE DEFINER = CURRENT_USER TRIGGER `operaciones_recibos_BEFORE_UPDATE` BEFORE UPDATE ON `operaciones_recibos` FOR EACH ROW
+
+
+BEGIN
+
+DECLARE myDiff FLOAT(12,2) DEFAULT 0;
+DECLARE mSumRec DOUBLE(12,2) DEFAULT 0;
+
+IF NEW.persona_asociada >0 AND OLD.total_operacion != NEW.total_operacion THEN
+
+	SET myDiff = NEW.total_operacion - OLD.total_operacion;
+	IF myDiff != 0 THEN
+		SET myDiff = 0;
+		-- UPDATE `empresas_cobranza` SET `monto_enviado`=setNoMenorCero((`monto_enviado`-myDiff)) WHERE `recibo`=NEW.idoperaciones_recibos;
+	END IF;
+
+
+END IF;
+
+END $$
+
+DELIMITER ;
+
+-- -- Actualizar Cobranza
+
+DELIMITER $$
+
+DROP TRIGGER IF EXISTS `empresas_cobranza_BEFORE_INSERT`$$
+
+CREATE DEFINER = CURRENT_USER TRIGGER `empresas_cobranza_BEFORE_INSERT` BEFORE INSERT ON `empresas_cobranza` FOR EACH ROW
+
+BEGIN
+
+IF NEW.monto_arch <= 0 THEN
+
+SET NEW.monto_arch = NEW.monto_enviado;
+
+END IF;
+
+
+END $$
+
+DELIMITER ;
+
+-- - --------------------------------
+-- - Funcion que obtiene el Alias de la empresa
+-- - 14/Abril/2018
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getAliasEmpresa`$$
+
+CREATE FUNCTION `getAliasEmpresa`(IDEmp INT(8)) RETURNS VARCHAR(40)
+BEGIN
+	
+	DECLARE IDNe VARCHAR(40) DEFAULT '';
+	
+	
+	SET IDNe = ( SELECT `nombre_corto` FROM `socios_aeconomica_dependencias` WHERE `idsocios_aeconomica_dependencias`=IDEmp LIMIT 0,1 );
+	 
+	IF ISNULL(IDNe) THEN
+		SET IDNe = '';
+	END IF;
+
+	RETURN IDNe;
+    END$$
+
+DELIMITER ;
+
+
+
+-- --
+-- -- funcion nueva traduccion
+-- -- 
+DELIMITER $$
+DROP FUNCTION IF EXISTS `setNuevaTrad`$$
+CREATE
+    FUNCTION `setNuevaTrad`(TXTLANG VARCHAR(4), TXTPALABRA VARCHAR(100), TXTTRAD VARCHAR(100))
+    RETURNS VARCHAR(100)
+    BEGIN
+	DECLARE mTXT VARCHAR(100) DEFAULT "";
+
+	SET mTXT = (SELECT `traduccion` FROM `sistema_lenguaje` WHERE `idioma`=TXTLANG AND `equivalente`=TXTPALABRA LIMIT 0,1);
+	IF ISNULL(mTXT)  THEN
+		SET mTXT = 'new';
+		INSERT INTO `sistema_lenguaje` (`equivalente`, `traduccion`, `extension`, `idioma`) VALUES (TXTPALABRA, TXTTRAD, '', TXTLANG);
+	ELSE
+		UPDATE `sistema_lenguaje` SET `traduccion` = TXTTRAD WHERE `idioma`=TXTLANG AND `equivalente`=TXTPALABRA;
+	END IF;
+	RETURN mTXT;
+    END$$
+
+DELIMITER ;
 
 

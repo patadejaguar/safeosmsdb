@@ -397,9 +397,9 @@ CREATE VIEW `interes_normal_devengado` AS
 (SELECT
 	`operaciones_mvtos`.`docto_afectado`,
 	`operaciones_mvtos`.`socio_afectado`,
-	`operaciones_mvtos`.`periodo_mensual`      AS `periodo`,
-	`operaciones_mvtos`.`periodo_anual`        AS `ejercicio`,
-	DATE_FORMAT( CONCAT( `operaciones_mvtos`.`periodo_anual`, '-', `operaciones_mvtos`.`periodo_mensual`, '-01'), '%Y%m') AS 'indice',
+	DATE_FORMAT(`operaciones_mvtos`.`fecha_afectacion`,'%m')      AS `periodo`,
+	DATE_FORMAT(`operaciones_mvtos`.`fecha_afectacion`,'%Y')      AS `ejercicio`,
+	DATE_FORMAT(`operaciones_mvtos`.`fecha_afectacion`,'%Y%m') AS 'indice',
 	SUM(`operaciones_mvtos`.`afectacion_real` * `eacp_config_bases_de_integracion_miembros`.`afectacion`) AS `interes` 
 FROM
 	`operaciones_mvtos` `operaciones_mvtos` 
@@ -413,15 +413,18 @@ GROUP BY
 	`eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,
 	`operaciones_mvtos`.`socio_afectado`,
 	`operaciones_mvtos`.`docto_afectado`,
-	`operaciones_mvtos`.`periodo_mensual`,
-	`operaciones_mvtos`.`periodo_anual` 
+	DATE_FORMAT(`operaciones_mvtos`.`fecha_afectacion`,'%Y%m')
 ORDER BY
 	`eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,
 	`operaciones_mvtos`.`periodo_anual`,
 	`operaciones_mvtos`.`periodo_mensual`)$$
 
 DELIMITER ;
--- -  Vista de Intereses Devengados Sin ICA
+
+
+-- -  
+-- -  Vista de Intereses Devengados Sin ICA .- 2018-04-24
+-- -  
 DELIMITER $$
 DROP VIEW IF EXISTS `interes_normal_devengado_sin_ica`$$
 DROP TABLE IF EXISTS `interes_normal_devengado_sin_ica`$$
@@ -430,9 +433,9 @@ CREATE VIEW `interes_normal_devengado_sin_ica` AS
 (SELECT
 	`operaciones_mvtos`.`docto_afectado`,
 	`operaciones_mvtos`.`socio_afectado`,
-	`operaciones_mvtos`.`periodo_mensual`      AS `periodo`,
-	`operaciones_mvtos`.`periodo_anual`        AS `ejercicio`,
-	DATE_FORMAT( CONCAT( `operaciones_mvtos`.`periodo_anual`, '-', `operaciones_mvtos`.`periodo_mensual`, '-01'), '%Y%m') AS 'indice',
+	DATE_FORMAT(`operaciones_mvtos`.`fecha_afectacion`,'%m')      AS `periodo`,
+	DATE_FORMAT(`operaciones_mvtos`.`fecha_afectacion`,'%Y')      AS `ejercicio`,
+	DATE_FORMAT(`operaciones_mvtos`.`fecha_afectacion`,'%Y%m') AS 'indice',
 	SUM(`operaciones_mvtos`.`afectacion_real` * `eacp_config_bases_de_integracion_miembros`.`afectacion`) AS `interes` 
 FROM
 	`operaciones_mvtos` `operaciones_mvtos` 
@@ -448,12 +451,9 @@ GROUP BY
 	`eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,
 	`operaciones_mvtos`.`socio_afectado`,
 	`operaciones_mvtos`.`docto_afectado`,
-	`operaciones_mvtos`.`periodo_mensual`,
-	`operaciones_mvtos`.`periodo_anual` 
+	DATE_FORMAT(`operaciones_mvtos`.`fecha_afectacion`,'%Y%m')
 ORDER BY
-	`eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,
-	`operaciones_mvtos`.`periodo_anual`,
-	`operaciones_mvtos`.`periodo_mensual`)$$
+	`eacp_config_bases_de_integracion_miembros`.`codigo_de_base`)$$
  
 DELIMITER ;
 
@@ -466,9 +466,9 @@ CREATE VIEW `interes_normal_devengado_solo_ica` AS
 (SELECT
 	`operaciones_mvtos`.`docto_afectado`,
 	`operaciones_mvtos`.`socio_afectado`,
-	`operaciones_mvtos`.`periodo_mensual`      AS `periodo`,
-	`operaciones_mvtos`.`periodo_anual`        AS `ejercicio`,
-	DATE_FORMAT( CONCAT( `operaciones_mvtos`.`periodo_anual`, '-', `operaciones_mvtos`.`periodo_mensual`, '-01'), '%Y%m') AS 'indice',
+	DATE_FORMAT(`operaciones_mvtos`.`fecha_afectacion`,'%m')      AS `periodo`,
+	DATE_FORMAT(`operaciones_mvtos`.`fecha_afectacion`,'%Y')      AS `ejercicio`,
+	DATE_FORMAT(`operaciones_mvtos`.`fecha_afectacion`,'%Y%m') AS 'indice',
 	SUM(`operaciones_mvtos`.`afectacion_real` * `eacp_config_bases_de_integracion_miembros`.`afectacion`) AS `interes` 
 FROM
 	`operaciones_mvtos` `operaciones_mvtos` 
@@ -484,8 +484,7 @@ GROUP BY
 	`eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,
 	`operaciones_mvtos`.`socio_afectado`,
 	`operaciones_mvtos`.`docto_afectado`,
-	`operaciones_mvtos`.`periodo_mensual`,
-	`operaciones_mvtos`.`periodo_anual` 
+	DATE_FORMAT(`operaciones_mvtos`.`fecha_afectacion`,'%Y%m')
 ORDER BY
 	`eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,
 	`operaciones_mvtos`.`periodo_anual`,
@@ -502,9 +501,9 @@ CREATE VIEW `interes_devengado_por_cobrar` AS
 (SELECT
 	`operaciones_mvtos`.`docto_afectado`,
 	`operaciones_mvtos`.`socio_afectado`,
-	`operaciones_mvtos`.`periodo_mensual`      AS `periodo`,
-	`operaciones_mvtos`.`periodo_anual`        AS `ejercicio`,
-	DATE_FORMAT( CONCAT( `operaciones_mvtos`.`periodo_anual`, '-', `operaciones_mvtos`.`periodo_mensual`, '-01'), '%Y%m') AS 'indice',
+	DATE_FORMAT(`operaciones_mvtos`.`fecha_afectacion`,'%m')      AS `periodo`,
+	DATE_FORMAT(`operaciones_mvtos`.`fecha_afectacion`,'%Y')      AS `ejercicio`,
+	DATE_FORMAT(`operaciones_mvtos`.`fecha_afectacion`,'%Y%m') AS 'indice',
 	SUM(`operaciones_mvtos`.`afectacion_real` * `eacp_config_bases_de_integracion_miembros`.`afectacion`) AS `interes` 
 FROM
 	`operaciones_mvtos` `operaciones_mvtos` 
@@ -518,8 +517,7 @@ GROUP BY
 	`eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,
 	`operaciones_mvtos`.`socio_afectado`,
 	`operaciones_mvtos`.`docto_afectado`,
-	`operaciones_mvtos`.`periodo_mensual`,
-	`operaciones_mvtos`.`periodo_anual` 
+	DATE_FORMAT(`operaciones_mvtos`.`fecha_afectacion`,'%Y%m')
 ORDER BY
 	`eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,
 	`operaciones_mvtos`.`periodo_anual`,
