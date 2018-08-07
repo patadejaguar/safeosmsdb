@@ -302,32 +302,40 @@ DELIMITER $$
 DROP VIEW IF EXISTS `creditos`$$
 DROP TABLE IF EXISTS `creditos`$$
 
-CREATE VIEW `creditos` AS select `creditos_solicitud`.`numero_socio` 
-AS `numero_socio`,`creditos_solicitud`.`numero_solicitud` 
-AS `solicitud`,`creditos_modalidades`.`descripcion_modalidades` 
-AS `modalidad`,`creditos_tipoconvenio`.`descripcion_tipoconvenio` 
-AS `convenio`,`creditos_solicitud`.`fecha_ministracion` 
-AS `fecha_ministracion`,`creditos_solicitud`.`monto_autorizado` AS `monto_autorizado`,
-format((`creditos_solicitud`.`dias_autorizados` / 30.41666666),0) AS `plazo`,
-`creditos_solicitud`.`fecha_vencimiento` 
-AS `fecha_vencimiento`,`creditos_solicitud`.`saldo_actual` 
-AS `saldo_actual`,`creditos_solicitud`.`saldo_vencido`
- AS `saldo_vencido`,`creditos_solicitud`.`interes_diario` 
- AS `interes_diario`,`creditos_periocidadpagos`.`descripcion_periocidadpagos` AS 
- `periocidad`,`creditos_solicitud`.`sucursal` AS `sucursal`,
- `creditos_solicitud`.`estatus_actual` AS 'estatus'
+CREATE VIEW `creditos` AS SELECT `creditos_solicitud`.`numero_socio` 	AS `numero_socio`,
+`creditos_solicitud`.`numero_solicitud` 				AS `solicitud`,
+`creditos_modalidades`.`descripcion_modalidades` 			AS `modalidad`,
+`creditos_tipoconvenio`.`descripcion_tipoconvenio` 			AS `convenio`,
+`creditos_solicitud`.`fecha_ministracion` 				AS `fecha_ministracion`,
+`creditos_solicitud`.`monto_autorizado` 				AS `monto_autorizado`,
+format((`creditos_solicitud`.`dias_autorizados` / 30.41666666),0) 	AS `plazo`,
+`creditos_solicitud`.`fecha_vencimiento` 				AS `fecha_vencimiento`,
+`creditos_solicitud`.`saldo_actual` 					AS `saldo_actual`,
+`creditos_solicitud`.`saldo_vencido`					AS `saldo_vencido`,
+`creditos_solicitud`.`interes_diario` 					AS `interes_diario`,
+`creditos_periocidadpagos`.`descripcion_periocidadpagos` 		AS `periocidad`,
+`creditos_solicitud`.`sucursal` 					AS `sucursal`,
+`creditos_solicitud`.`estatus_actual` 					AS `estatus`,
+(`creditos_tipoconvenio`.`porciento_garantia_liquida` * 100) 		AS `tasa_gtialiq`,
 
-FROM
-	`creditos_solicitud` `creditos_solicitud` 
-		INNER JOIN `creditos_modalidades` `creditos_modalidades` 
-		ON `creditos_solicitud`.`tipo_credito` = `creditos_modalidades`.
-		`idcreditos_modalidades` 
-			INNER JOIN `creditos_periocidadpagos` `creditos_periocidadpagos` 
-			ON `creditos_solicitud`.`periocidad_de_pago` = 
-			`creditos_periocidadpagos`.`idcreditos_periocidadpagos` 
-				INNER JOIN `creditos_tipoconvenio` `creditos_tipoconvenio` 
-				ON `creditos_solicitud`.`tipo_convenio` = 
-				`creditos_tipoconvenio`.`idcreditos_tipoconvenio`
+`creditos_solicitud`.`pagos_autorizados` 				AS `pagos`,
+`creditos_estatus`.`descripcion_estatus` 					AS `estatus_credito`,
+CONCAT(`creditos_solicitud`.`numero_solicitud`,'-',
+         getFechaMX(`creditos_solicitud`.`fecha_ministracion`),'-',
+         `creditos_tipoconvenio`.`nombre_corto`,'-',
+         `creditos_periocidadpagos`.`descripcion_periocidadpagos`,'-',
+         `creditos_estatus`.`descripcion_estatus`,'-',
+         IF(`creditos_solicitud`.`saldo_actual`>0,`creditos_solicitud`.`saldo_actual`, '')) AS `descripcion`,
+
+IF((`creditos_solicitud`.`monto_autorizado`>0 AND `creditos_solicitud`.`estatus_actual`!=99 AND `creditos_solicitud`.`estatus_actual`!=98 AND `creditos_solicitud`.`estatus_actual`!=50),1,0) 		AS `estatusactivo`
+
+FROM     `creditos_solicitud` 
+INNER JOIN `creditos_modalidades`  ON `creditos_solicitud`.`tipo_credito` = `creditos_modalidades`.`idcreditos_modalidades` 
+INNER JOIN `creditos_periocidadpagos`  ON `creditos_solicitud`.`periocidad_de_pago` = `creditos_periocidadpagos`.`idcreditos_periocidadpagos` 
+INNER JOIN `creditos_tipoconvenio`  ON `creditos_solicitud`.`tipo_convenio` = `creditos_tipoconvenio`.`idcreditos_tipoconvenio` 
+INNER JOIN `creditos_estatus`  ON `creditos_solicitud`.`estatus_actual` = `creditos_estatus`.`idcreditos_estatus` 
+
+
 
 $$
 
@@ -372,8 +380,8 @@ CREATE
     AS
     (SELECT
 		`operaciones_mvtos`.`docto_afectado`,
-		SUM(`operaciones_mvtos`.`afectacion_real` *
-		`eacp_config_bases_de_integracion_miembros`.`afectacion`) AS 'monto'
+		ROUND(SUM(`operaciones_mvtos`.`afectacion_real` *
+		`eacp_config_bases_de_integracion_miembros`.`afectacion`),2) AS 'monto'
 	FROM
 		`operaciones_mvtos` `operaciones_mvtos`
 			INNER JOIN `eacp_config_bases_de_integracion_miembros`
@@ -504,7 +512,7 @@ CREATE VIEW `interes_devengado_por_cobrar` AS
 	DATE_FORMAT(`operaciones_mvtos`.`fecha_afectacion`,'%m')      AS `periodo`,
 	DATE_FORMAT(`operaciones_mvtos`.`fecha_afectacion`,'%Y')      AS `ejercicio`,
 	DATE_FORMAT(`operaciones_mvtos`.`fecha_afectacion`,'%Y%m') AS 'indice',
-	SUM(`operaciones_mvtos`.`afectacion_real` * `eacp_config_bases_de_integracion_miembros`.`afectacion`) AS `interes` 
+	ROUND(SUM(`operaciones_mvtos`.`afectacion_real` * `eacp_config_bases_de_integracion_miembros`.`afectacion`),2) AS `interes` 
 FROM
 	`operaciones_mvtos` `operaciones_mvtos` 
 		INNER JOIN `eacp_config_bases_de_integracion_miembros` 
@@ -512,16 +520,17 @@ FROM
 		ON `operaciones_mvtos`.`tipo_operacion` = 
 		`eacp_config_bases_de_integracion_miembros`.`miembro` 
 WHERE
-	(`eacp_config_bases_de_integracion_miembros`.`codigo_de_base` = 2000) 
+	(`eacp_config_bases_de_integracion_miembros`.`codigo_de_base` = 2000)
+
+
 GROUP BY
 	`eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,
 	`operaciones_mvtos`.`socio_afectado`,
 	`operaciones_mvtos`.`docto_afectado`,
 	DATE_FORMAT(`operaciones_mvtos`.`fecha_afectacion`,'%Y%m')
+	AND (`operaciones_mvtos`.`fecha_afectacion` <= getFechaDeCorte())
 ORDER BY
-	`eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,
-	`operaciones_mvtos`.`periodo_anual`,
-	`operaciones_mvtos`.`periodo_mensual`)$$
+	`eacp_config_bases_de_integracion_miembros`.`codigo_de_base`)$$
 
 DELIMITER ;
 -- -  Vistas creditos abonos acumulados
@@ -1224,7 +1233,7 @@ DELIMITER $$
 DROP VIEW  IF EXISTS `creditos_recibos_pago_emitidos`$$
 DELIMITER ;
 
-
+-- --- Abonos Parciales de pago
 
 DELIMITER $$
 DROP VIEW IF EXISTS `creditos_abonos_parciales`$$
@@ -1233,19 +1242,20 @@ DROP TABLE IF EXISTS `creditos_abonos_parciales`$$
 CREATE VIEW `creditos_abonos_parciales` AS (
 
 SELECT
-  `eacp_config_bases_de_integracion_miembros`.`codigo_de_base` AS `codigo_de_base`,
-  `operaciones_mvtos`.`socio_afectado`                         AS `socio_afectado`,
-  `operaciones_mvtos`.`docto_afectado`                         AS `docto_afectado`,
-  `operaciones_mvtos`.`periodo_socio`                          AS `periodo_socio`,
-  MAX(`operaciones_mvtos`.`fecha_afectacion`)                  AS `fecha_de_pago`,
-  MAX(`operaciones_mvtos`.`fecha_vcto`)                        AS `fecha_de_vencimiento`,
-  SUM((CASE WHEN (`subclasificacion` = 120) THEN (`operaciones_mvtos`.`afectacion_real` * `afectacion`) ELSE 0 END)) AS `capital`,
-  SUM((CASE WHEN (`subclasificacion` = 140) THEN (`operaciones_mvtos`.`afectacion_real` * `afectacion`) ELSE 0 END)) AS `interes_normal`,
-SUM((CASE WHEN (`subclasificacion` = 141) THEN (`operaciones_mvtos`.`afectacion_real` * `afectacion`) ELSE 0 END)) AS `interes_moratorio`,
-SUM((CASE WHEN (`subclasificacion` = 0) THEN (`operaciones_mvtos`.`afectacion_real` * `afectacion`) ELSE 0 END)) AS `otros`,
-SUM((CASE WHEN (`subclasificacion` = 151) THEN (`operaciones_mvtos`.`afectacion_real` * `afectacion`) ELSE 0 END)) AS `impuesto`,
-
-SUM(`operaciones_mvtos`.`afectacion_real` * `afectacion`) AS `total`
+		  `eacp_config_bases_de_integracion_miembros`.`codigo_de_base` AS `codigo_de_base`,
+		  `operaciones_mvtos`.`socio_afectado`                         AS `socio_afectado`,
+		  `operaciones_mvtos`.`docto_afectado`                         AS `docto_afectado`,
+		  `operaciones_mvtos`.`docto_afectado`                         AS `credito`,
+		  `operaciones_mvtos`.`socio_afectado`                         AS `persona`,
+		  `operaciones_mvtos`.`periodo_socio`                          AS `periodo_socio`,
+		  MAX(`operaciones_mvtos`.`fecha_afectacion`)                  AS `fecha_de_pago`,
+		  MAX(`operaciones_mvtos`.`fecha_vcto`)                        AS `fecha_de_vencimiento`,
+		  SUM(IF(`subclasificacion` = 120, `operaciones_mvtos`.`afectacion_real` * `afectacion`,0)) AS `capital`,
+		  SUM(IF(`subclasificacion` = 140, `operaciones_mvtos`.`afectacion_real` * `afectacion`,0)) AS `interes_normal`,
+		  SUM(IF(`subclasificacion` = 141, `operaciones_mvtos`.`afectacion_real` * `afectacion`,0)) AS `interes_moratorio`,
+		  SUM(IF(`subclasificacion` = 0, `operaciones_mvtos`.`afectacion_real` * `afectacion`,0)) AS `otros`,
+		  SUM(IF(`subclasificacion` = 151, `operaciones_mvtos`.`afectacion_real` * `afectacion`,0)) AS `impuesto`,
+		  SUM(`operaciones_mvtos`.`afectacion_real` * `afectacion`) AS `total`
 
 FROM (`operaciones_mvtos`
    JOIN `eacp_config_bases_de_integracion_miembros`

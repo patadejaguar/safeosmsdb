@@ -2190,6 +2190,24 @@ UPDATE `socios_general` SET `nss` = (SELECT `numero_de_seguridad_social` FROM `s
 UPDATE `socios_general` SET `nss` = '' WHERE ISNULL(`nss`);
 
 
+
+
+UPDATE `creditos_rechazados` SET `claverechazo`=999 WHERE `claverechazo`=0;
+UPDATE `creditos_rechazados` SET `idusuario`=1 WHERE `idusuario`=0;
+UPDATE `creditos_rechazados` SET `tiempo`= UNIX_TIMESTAMP() WHERE `tiempo`=0;
+
+
+UPDATE `creditos_solicitud` SET `fecha_ultimo_mvto`=`fecha_solicitud` WHERE `fecha_ultimo_mvto`='0000-00-00';
+UPDATE `creditos_solicitud` SET `fecha_de_proximo_pago`=`fecha_de_primer_pago` WHERE ISNULL(`fecha_de_proximo_pago`);
+UPDATE `creditos_solicitud` SET `fecha_conciliada`=`fecha_solicitud` WHERE `fecha_conciliada`='0000-00-00';
+
+
+UPDATE `socios_general` SET `xclasificacion`=1 WHERE `xclasificacion`=0;
+UPDATE `socios_general` SET `yclasificacion`=1 WHERE `yclasificacion`=0;
+UPDATE `socios_general` SET `zclasificacion`=1 WHERE `zclasificacion`=0;
+
+
+
 END$$
 
 DELIMITER ;
@@ -2593,7 +2611,9 @@ DROP TABLE IF EXISTS `tmp_personas_estadisticas`;
 
 CREATE TABLE `tmp_personas_estadisticas` AS  
 (
-SELECT `codigo` AS `persona`, 0 AS `creditos`, 0 AS `cuentas`, 0 AS `credito_activo`, 0 AS `creditos_con_saldo`, 0 AS `total_autorizado`, 0 AS `total_solicitado`, 0 AS `total_actual`  FROM `socios_general`
+SELECT `codigo` AS `persona`, 0 AS `creditos`, 0 AS `cuentas`, 0 AS `credito_activo`, 0 AS `creditos_con_saldo`, 0 AS `total_autorizado`, 0 AS `total_solicitado`, 0 AS `total_actual`,
+0 AS `ingreso_mensual`,0 AS `num_refpersonales`, '' AS `inf_creditos`
+FROM `socios_general`
 ) ;
 ALTER TABLE `tmp_personas_estadisticas` 
 CHANGE COLUMN `persona` `persona` BIGINT(20) UNSIGNED NOT NULL COMMENT '' ,
@@ -2604,6 +2624,10 @@ CHANGE COLUMN `total_autorizado` `total_autorizado` DOUBLE(18,2) DEFAULT 0 NULL,
 CHANGE COLUMN `total_solicitado` `total_solicitado` DOUBLE(18,2) DEFAULT 0 NULL,
 CHANGE COLUMN `total_actual` `total_actual` DOUBLE(18,2) DEFAULT 0 NULL,
 CHANGE COLUMN `credito_activo` `credito_activo` BIGINT(20) UNSIGNED NOT NULL COMMENT '' ,
+
+CHANGE COLUMN `ingreso_mensual` `ingreso_mensual` DOUBLE(18,2) DEFAULT 0 NULL,
+CHANGE COLUMN `num_refpersonales` `num_refpersonales` BIGINT(20) UNSIGNED NOT NULL COMMENT '' ,
+CHANGE COLUMN `inf_creditos` `inf_creditos` VARCHAR(250) DEFAULT '',
 
 ADD PRIMARY KEY (`persona`);
 
@@ -2626,10 +2650,14 @@ read_loop: LOOP
 
   CLOSE cur1;
   
+UPDATE `tmp_personas_estadisticas` SET `num_refpersonales` = (SELECT   COUNT(`socios_relacionestipos`.`subclasificacion`)  FROM     `socios_relaciones` INNER JOIN `socios_relacionestipos`  ON `socios_relaciones`.`tipo_relacion` = `socios_relacionestipos`.`idsocios_relacionestipos`  WHERE    ( `socios_relaciones`.`estatus` = 10 ) AND ( `socios_relaciones`.`socio_relacionado` = `tmp_personas_estadisticas`.`persona` ) );
 
-
+UPDATE `tmp_personas_estadisticas` SET `ingreso_mensual` = (SELECT SUM(`monto_percibido_ae`)  FROM `socios_aeconomica` WHERE `estado_actual`!=0 AND `socio_aeconomica`=`tmp_personas_estadisticas`.`persona`);
 
 UPDATE `tmp_personas_estadisticas` SET `cuentas` = (SELECT COUNT(*) FROM `captacion_cuentas` WHERE `captacion_cuentas`.`numero_socio`= `tmp_personas_estadisticas`.`persona` );
+
+UPDATE `tmp_personas_estadisticas` SET `ingreso_mensual`=0 WHERE ISNULL(`ingreso_mensual`);
+
 
 
 END$$
@@ -2715,9 +2743,12 @@ CREATE
 		SET vFecha = (SELECT `fecha_de_pago` FROM `creditos_letras_pendientes` WHERE `docto_afectado`=vCredito LIMIT 0,1);
 
 	END IF;
+	
 	SET mDias = DATEDIFF(getFechaDeCorte(), vFecha);
 	SET mDias = setNoMenorCero(mDias);
-
+	IF ISNULL(mDias) THEN
+		SET mDias = 0;
+	END IF;
 	RETURN mDias;
 
     END$$
@@ -2987,7 +3018,7 @@ BEGIN
 
 DROP TABLE IF EXISTS `tmp_creditos_ultimos_recs`;
 
-CREATE TABLE `tmp_creditos_ultimos_recs` ENGINE=MEMORY AS ( 
+CREATE TABLE `tmp_creditos_ultimos_recs` ENGINE=INNODB AS ( 
 
 SELECT   
          `operaciones_mvtos`.`docto_afectado` AS `documento`,
@@ -3020,7 +3051,7 @@ BEGIN
 
 DROP TABLE IF EXISTS `tmp_recibos_distrib`;
 
-CREATE TABLE `tmp_recibos_distrib` ENGINE=MEMORY AS ( 
+CREATE TABLE `tmp_recibos_distrib` ENGINE=INNODB AS ( 
 
 SELECT   
 	`operaciones_mvtos`.`recibo_afectado` AS `recibo`,
@@ -3200,7 +3231,7 @@ BEGIN
 
 DROP TABLE IF EXISTS `tmp_creditos_abonos_parciales`;
 
-CREATE TABLE `tmp_creditos_abonos_parciales` ENGINE=MEMORY AS ( 
+CREATE TABLE `tmp_creditos_abonos_parciales` ENGINE=INNODB AS ( 
 
 SELECT
   `eacp_config_bases_de_integracion_miembros`.`codigo_de_base` AS `codigo_de_base`,
@@ -3253,7 +3284,7 @@ BEGIN
 
 DROP TABLE IF EXISTS `tmp_creditos_abonos_totales`;
 
-CREATE TABLE `tmp_creditos_abonos_totales` ENGINE=MEMORY AS ( 
+CREATE TABLE `tmp_creditos_abonos_totales` ENGINE=INNODB AS ( 
 
 SELECT
 	`operaciones_mvtos`.`docto_afectado` AS `docto_afectado`,
@@ -3923,5 +3954,126 @@ CREATE
     END$$
 
 DELIMITER ;
+
+
+-- - --------------------------------
+-- - Funcion que obtiene si el credito ya esta pagado
+-- - 4/Junio/2018
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getEsCreditoPagado`$$
+
+CREATE FUNCTION `getEsCreditoPagado`(IDCred BIGINT(25)) RETURNS BOOLEAN
+BEGIN
+	
+	DECLARE IDNe BOOLEAN DEFAULT FALSE;
+	
+	
+	SET IDNe = ( SELECT IF((`saldo_actual` <=0 AND `monto_autorizado`>0 AND `estatus_actual` != 98 AND `estatus_actual` != 99), TRUE, FALSE) FROM `creditos_solicitud` WHERE `numero_solicitud`=IDCred LIMIT 0,1);
+	 
+	IF ISNULL(IDNe) THEN
+		SET IDNe = FALSE;
+	END IF;
+
+	RETURN IDNe;
+    END$$
+
+DELIMITER ;
+
+
+-- - --------------------------------
+-- - Funcion que obtiene si un documento es activo por persona
+-- - 20/Junio/2018
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getEsDoctoEntregadoByP`$$
+
+CREATE FUNCTION `getEsDoctoEntregadoByP`(IDPers BIGINT(25), vTipo INT(8)) RETURNS BOOLEAN
+BEGIN
+	
+	DECLARE IDNe BOOLEAN DEFAULT FALSE;
+	DECLARE nActs INT(4) DEFAULT 0;
+	
+	SET nActs = ( SELECT COUNT(*) FROM `personas_documentacion` WHERE `clave_de_persona`=IDPers AND `estatus`=1 AND `tipo_de_documento`=vTipo );
+	 
+	IF ISNULL(nActs) THEN
+		SET nActs = 0;
+	END IF;
+	
+	IF nActs > 0 THEN
+		SET IDNe = TRUE;
+	END IF;
+	
+	RETURN IDNe;
+    END$$
+
+DELIMITER ;
+
+
+
+-- -- 
+-- -- Inserta un Numero de cuenta Valido 
+-- -- 16 Julio 2018
+-- -- 
+-- -- 
+
+DELIMITER $$
+
+DROP TRIGGER IF EXISTS `tesoreria_cajas_movimientos_BEFORE_INSERT`$$
+
+CREATE DEFINER = CURRENT_USER TRIGGER `tesoreria_cajas_movimientos_BEFORE_INSERT` BEFORE INSERT ON `tesoreria_cajas_movimientos` FOR EACH ROW
+
+BEGIN
+DECLARE IDBanco INT(4) DEFAULT 0;
+IF NEW.cuenta_bancaria > 0 THEN
+	SET IDBanco = (SELECT `entidad_bancaria` FROM `bancos_cuentas` WHERE `idbancos_cuentas`=NEW.cuenta_bancaria LIMIT 0,1);
+	IF ISNULL(IDBanco) THEN
+		SET IDBanco = 2;
+	END IF;
+	SET NEW.banco = IDBanco;
+END IF;
+
+
+
+END $$
+
+DELIMITER ;
+
+
+
+
+
+
+-- - --------------------------------
+-- - Funcion que obtiene un saldo a una fecha determinada
+-- - 20/Junio/2018
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getSaldoAFecha`$$
+
+CREATE FUNCTION `getSaldoAFecha`(IDCred BIGINT(25), mMinistrado DOUBLE(18,2), vFecha DATE) RETURNS DOUBLE(18,2)
+BEGIN
+	DECLARE Abonos DOUBLE(18,2) DEFAULT 0;
+	DECLARE Saldo DOUBLE(18,2) DEFAULT 0;
+	
+	SET Abonos = ( SELECT SUM((`afectacion_real` * `valor_afectacion`)) FROM `operaciones_mvtos` WHERE `tipo_operacion` =120 AND `fecha_afectacion` <= vFecha AND `docto_afectado`=IDCred);
+	 
+	IF ISNULL(Abonos) THEN
+		SET Abonos = 0;
+	END IF;
+	
+	SET Saldo = mMinistrado - Abonos;
+	
+	RETURN Saldo;
+    END$$
+
+DELIMITER ;
+
 
 
