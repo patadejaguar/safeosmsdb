@@ -4075,5 +4075,29 @@ BEGIN
 
 DELIMITER ;
 
+-- - --------------------------------
+-- - Funcion que obtiene el monto de una cuota determinada
+-- - 14/Agosto/2018
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getMontoCuotaCred`$$
+
+CREATE FUNCTION `getMontoCuotaCred`(IDCred BIGINT(25),IDParc INT(6) ) RETURNS DOUBLE(18,2)
+BEGIN
+	
+	DECLARE Saldo DOUBLE(18,2) DEFAULT 0;
+	
+	SET Saldo = ( SELECT SUM(`letra`) FROM `tmp_creds_prox_letras` WHERE `docto_afectado`=IDCred AND `periodo_socio`=IDParc);
+	 
+	IF ISNULL(Saldo) THEN
+		SET Saldo = 0;
+	END IF;
+	RETURN Saldo;
+    END$$
+
+DELIMITER ;
+
 
 

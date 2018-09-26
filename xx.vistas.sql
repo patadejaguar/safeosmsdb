@@ -974,14 +974,11 @@ SELECT
   `operaciones_mvtos`.`periodo_socio`                          AS `periodo_socio`,
 MIN(`operaciones_mvtos`.`fecha_afectacion`)                  AS `fecha_de_pago`,
 MAX(`operaciones_mvtos`.`fecha_afectacion`)                   AS `fecha_de_vencimiento`,
+
 SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 410,`operaciones_mvtos`.`afectacion_real`,0)) AS `capital`,
 SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 411,`operaciones_mvtos`.`afectacion_real`,0)) AS `interes`,
 SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 413,`operaciones_mvtos`.`afectacion_real`,0)) AS `iva`,
 SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 412,`operaciones_mvtos`.`afectacion_real`,0)) AS `ahorro`,
-
-
-
-
 
 SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()) ,`operaciones_mvtos`.`afectacion_real`,0)) AS `capital_exigible`,
 SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 411 AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()),`operaciones_mvtos`.`afectacion_real`,0)) AS `interes_exigible`,
@@ -2375,5 +2372,51 @@ FROM     `seguimiento_notificaciones`
 ;$$
 
 DELIMITER ;
+
+
+
+-- - --------------------------------
+-- - Vista de Planes Descuadre
+-- - Septiembre / 2018
+-- - --------------------------------
+
+	
+DELIMITER $$
+
+DROP VIEW IF EXISTS `vw_planes_cuadre`$$
+DROP TABLE IF EXISTS `vw_planes_cuadre`$$
+
+CREATE
+    VIEW `vw_planes_cuadre` 
+    AS
+
+SELECT   `creditos_plan_de_pagos`.`clave_de_credito`,
+         COUNT( `creditos_plan_de_pagos`.`plan_de_pago` )  AS `pagos`,
+         MIN( `creditos_plan_de_pagos`.`fecha_de_pago` )  AS `fecha_inicial`,
+         `creditos_solicitud`.`monto_autorizado`,
+         SUM( `creditos_plan_de_pagos`.`capital` )  AS `capital`,
+         SUM( `creditos_plan_de_pagos`.`interes` )  AS `interes`,
+         
+         SUM( `creditos_plan_de_pagos`.`otros` )  AS `otros`,
+         SUM( `creditos_plan_de_pagos`.`ahorro` )  AS `ahorro`,
+         SUM( `creditos_plan_de_pagos`.`penas` )  AS `penas`,
+         SUM( `creditos_plan_de_pagos`.`gtoscbza` )  AS `gtoscbza`,
+         SUM( `creditos_plan_de_pagos`.`mora` )  AS `mora`,
+         SUM( `creditos_plan_de_pagos`.`descuentos` )  AS `descuentos`,
+         SUM( `creditos_plan_de_pagos`.`iva_castigos` )  AS `ivas_castigos`,
+         SUM( `creditos_plan_de_pagos`.`total_base` )  AS `total_base`,
+         SUM( `creditos_plan_de_pagos`.`total_c_otros` )  AS `total_c_cargos`,
+         SUM( `creditos_plan_de_pagos`.`total_c_castigos` )  AS `total_c_castigos`,
+         SUM( `creditos_plan_de_pagos`.`impuesto` )  AS `impuesto`
+FROM     `creditos_plan_de_pagos` 
+INNER JOIN `creditos_solicitud`  ON `creditos_plan_de_pagos`.`clave_de_credito` = `creditos_solicitud`.`numero_solicitud` 
+WHERE    ( `creditos_plan_de_pagos`.`estatusactivo` = 1 )
+GROUP BY clave_de_credito
+HAVING capital = monto_autorizado
+
+;$$
+
+DELIMITER ;
+
 
 
