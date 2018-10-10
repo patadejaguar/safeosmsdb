@@ -24,6 +24,7 @@ GROUP BY `bancos_operaciones`.`recibo_relacionado`)$$
 DELIMITER ;
 
 
+
 -- -  Vista de Usuarios
 DELIMITER $$
 

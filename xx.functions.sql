@@ -1,5 +1,6 @@
 SET GLOBAL log_bin_trust_function_creators = 1;
 
+
 -- Abril/2016
 
 DELIMITER $$
