@@ -3499,6 +3499,10 @@ IF CONVERT(NEW.fecha_de_registro, CHAR(12))= '0000-00-00' THEN
 END IF;
 
 
+IF CONVERT(NEW.fecha_valor, CHAR(12))= '0000-00-00' THEN
+	SET NEW.fecha_valor = CURDATE();
+END IF;
+
 END $$
 
 DELIMITER ;

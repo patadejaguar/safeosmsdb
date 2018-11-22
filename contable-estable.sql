@@ -1,6 +1,8 @@
 -- Contabilidad de Pruebas
 --
-/*!40000 ALTER TABLE `contable_catalogo` DISABLE KEYS */;
+UNLOCK TABLES;
+
+
 INSERT INTO `contable_catalogo` (`numero`, `equivalencia`, `nombre`, `tipo`, `ctamayor`, `afectable`, `centro_de_costo`, `fecha_de_alta`, `digitoagrupador`) VALUES (10000000,'00000000','ACTIVO','AD',1,0,0,'2018-09-25',1);
 INSERT INTO `contable_catalogo` (`numero`, `equivalencia`, `nombre`, `tipo`, `ctamayor`, `afectable`, `centro_de_costo`, `fecha_de_alta`, `digitoagrupador`) VALUES (11000000,'00000000','FONDOS DISPONIBLES','AD',2,0,0,'2018-09-25',2);
 INSERT INTO `contable_catalogo` (`numero`, `equivalencia`, `nombre`, `tipo`, `ctamayor`, `afectable`, `centro_de_costo`, `fecha_de_alta`, `digitoagrupador`) VALUES (11010000,'00000000','CAJA','AD',3,0,0,'2018-09-25',3);
@@ -3160,15 +3162,14 @@ INSERT INTO `contable_catalogo` (`numero`, `equivalencia`, `nombre`, `tipo`, `ct
 INSERT INTO `contable_catalogo` (`numero`, `equivalencia`, `nombre`, `tipo`, `ctamayor`, `afectable`, `centro_de_costo`, `fecha_de_alta`, `digitoagrupador`) VALUES (85040000000000,'00000000000000','LÃNEAS DE CRÃ‰DITO AUTORIZADAS MONTO NO EJERCIDO','OD',3,0,999,'2006-01-01',3);
 INSERT INTO `contable_catalogo` (`numero`, `equivalencia`, `nombre`, `tipo`, `ctamayor`, `afectable`, `centro_de_costo`, `fecha_de_alta`, `digitoagrupador`) VALUES (85040100000000,'00000000000000','LÃ­neas de crÃ©dito autorizadas monto no ejercido','OD',4,0,999,'2006-01-01',4);
 INSERT INTO `contable_catalogo` (`numero`, `equivalencia`, `nombre`, `tipo`, `ctamayor`, `afectable`, `centro_de_costo`, `fecha_de_alta`, `digitoagrupador`) VALUES (85040101000000,'00000000000000','Nombre del Socio','OD',4,1,999,'2006-01-01',5);
-/*!40000 ALTER TABLE `contable_catalogo` ENABLE KEYS */;
-UNLOCK TABLES;
+
 
 --
 -- Dumping data for table `contable_catalogorelacion`
 --
 
-LOCK TABLES `contable_catalogorelacion` WRITE;
-/*!40000 ALTER TABLE `contable_catalogorelacion` DISABLE KEYS */;
+
+
 INSERT INTO `contable_catalogorelacion` (`cuentasuperior`, `subcuenta`, `tiporelacion`) VALUES (10000000,11000000,1);
 INSERT INTO `contable_catalogorelacion` (`cuentasuperior`, `subcuenta`, `tiporelacion`) VALUES (10000000,12000000,1);
 INSERT INTO `contable_catalogorelacion` (`cuentasuperior`, `subcuenta`, `tiporelacion`) VALUES (10000000,13000000,1);
@@ -6314,14 +6315,14 @@ INSERT INTO `contable_catalogorelacion` (`cuentasuperior`, `subcuenta`, `tiporel
 INSERT INTO `contable_catalogorelacion` (`cuentasuperior`, `subcuenta`, `tiporelacion`) VALUES (85030100000000,85030101000000,1);
 INSERT INTO `contable_catalogorelacion` (`cuentasuperior`, `subcuenta`, `tiporelacion`) VALUES (85040000000000,85040100000000,1);
 INSERT INTO `contable_catalogorelacion` (`cuentasuperior`, `subcuenta`, `tiporelacion`) VALUES (85040100000000,85040101000000,1);
-/*!40000 ALTER TABLE `contable_catalogorelacion` ENABLE KEYS */;
+
 
 
 --
 -- Dumping data for table `contable_catalogotipos`
 --
 
-/*!40000 ALTER TABLE `contable_catalogotipos` DISABLE KEYS */;
+
 INSERT INTO `contable_catalogotipos` (`idcontable_catalogotipos`,`nombre_del_tipo`,`naturaleza`) VALUES 
  ('AD','Activo Deudora',1),
  ('AA','Activo Acreedora',-1),
@@ -6331,26 +6332,26 @@ INSERT INTO `contable_catalogotipos` (`idcontable_catalogotipos`,`nombre_del_tip
  ('OA','Orden Acreedora',-1),
  ('CA','Capital Acreedora',1),
  ('CD','Capital Deudora',-1);
-/*!40000 ALTER TABLE `contable_catalogotipos` ENABLE KEYS */;
+
 
 
 --
 -- Dumping data for table `contable_centrodecostos`
 --
 
-/*!40000 ALTER TABLE `contable_centrodecostos` DISABLE KEYS */;
+
 INSERT INTO `contable_centrodecostos` (`idcontable_centrodecostos`,`nombre_centrodecostos`) VALUES 
  (999,'NINGUNO'),
  (1,'Flujo de Efectivo');
-/*!40000 ALTER TABLE `contable_centrodecostos` ENABLE KEYS */;
+
 
 
 --
 -- Dumping data for table `contable_polizasdiarios`
 --
 
-/*!40000 ALTER TABLE `contable_polizasdiarios` DISABLE KEYS */;
+
 INSERT INTO `contable_polizasdiarios` (`idcontable_polizadiarios`,`nombre_del_diario`) VALUES 
  (999,'NINGUNO');
-/*!40000 ALTER TABLE `contable_polizasdiarios` ENABLE KEYS */;
+
 

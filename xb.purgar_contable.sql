@@ -1,3 +1,4 @@
+
 DELETE FROM contable_polizas;
 DELETE FROM contable_movimientos;
 DELETE FROM contable_polizas_proforma;
