@@ -4104,5 +4104,27 @@ BEGIN
 
 DELIMITER ;
 
+-- - --------------------------------
+-- - Funcion que obtiene un mail por persona
+-- - 21/dic/2018
+-- - --------------------------------
 
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getMailByPersona`$$
+
+CREATE FUNCTION `getMailByPersona`(IDPers BIGINT(25) ) RETURNS VARCHAR(80)
+BEGIN
+	
+	DECLARE mMail VARCHAR(100) DEFAULT '';
+	
+	SET mMail = ( SELECT `correo_electronico` FROM `socios_general` WHERE `codigo`=IDPers LIMIT 0,1);
+	 
+	IF ISNULL(mMail) THEN
+		SET mMail = '';
+	END IF;
+	RETURN mMail;
+    END$$
+
+DELIMITER ;
 
