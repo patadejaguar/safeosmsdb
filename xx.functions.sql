@@ -1,6 +1,5 @@
 SET GLOBAL log_bin_trust_function_creators = 1;
 
-
 -- Abril/2016
 
 DELIMITER $$
@@ -2588,6 +2587,7 @@ DELIMITER ;
 
 
 DELIMITER $$
+
 DROP PROCEDURE IF EXISTS `sp_personas_estadisticas`$$
 CREATE  PROCEDURE `sp_personas_estadisticas`()
 BEGIN
@@ -2662,6 +2662,8 @@ UPDATE `tmp_personas_estadisticas` SET `ingreso_mensual`=0 WHERE ISNULL(`ingreso
 
 
 END$$
+
+
 DELIMITER ;
 
 -- -- Domicilios de personas, una al dia, actualizables al cierre del dia
@@ -4127,4 +4129,123 @@ BEGIN
     END$$
 
 DELIMITER ;
+
+
+-- --------------------------------
+-- - Funcion devuelve un plan de pago por Credito
+-- - 11/Enero/2019
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getPlanDePagoByCred`$$
+
+CREATE FUNCTION `getPlanDePagoByCred`(IDDocto BIGINT(20)) RETURNS BIGINT(20)
+BEGIN
+	DECLARE IDRec BIGINT(20) DEFAULT 0;
+	
+	SET IDRec = ( SELECT `idoperaciones_recibos` FROM `operaciones_recibos` WHERE `docto_afectado`=IDDocto AND  `tipo_docto`=11 ORDER BY `fecha_operacion` DESC LIMIT 0,1 );
+	
+	 
+	IF ISNULL(IDRec) THEN
+		SET IDRec = 0;
+	END IF;
+	RETURN IDRec;
+    END$$
+
+DELIMITER ;
+
+-- Tabla de Obtener Avales.
+-- Mod: Nov/2016
+
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getDatosDeAvales`$$
+
+CREATE FUNCTION `getDatosDeAvales`( IdCredito BIGINT(20) ) RETURNS VARCHAR(250) LANGUAGE SQL
+
+BEGIN
+
+	DECLARE done INTEGER DEFAULT 0;
+	DECLARE  mStr VARCHAR(250) DEFAULT "";
+	DECLARE  mTxt VARCHAR(250) DEFAULT "";
+	DECLARE Nombre VARCHAR(150) DEFAULT "";
+	DECLARE Correo VARCHAR(50) DEFAULT "";
+	DECLARE Telefono VARCHAR(20) DEFAULT "";
+
+	DECLARE cur1 CURSOR FOR SELECT `personas`.`nombre`, `personas`.`correo_electronico`, `personas`.`telefono`
+	FROM `socios_relaciones` INNER JOIN `socios_relacionestipos`  ON `socios_relaciones`.`tipo_relacion` = `socios_relacionestipos`.`idsocios_relacionestipos` 
+	INNER JOIN `personas`  ON `socios_relaciones`.`numero_socio` = `personas`.`codigo` WHERE ( `socios_relacionestipos`.`subclasificacion` = 5 ) AND ( `socios_relaciones`.`credito_relacionado` = IdCredito );
+	
+	DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+	OPEN cur1;
+
+	read_loop: LOOP
+		FETCH cur1 INTO Nombre,Correo,Telefono;
+			IF done THEN
+				LEAVE read_loop;
+			END IF;
+			SET mTxt = Nombre;
+			
+			IF Correo != "" THEN
+				SET mTxt = CONCAT(mTxt, ', Correo: ', Correo);
+			END IF;
+			IF Telefono != "" THEN
+				SET mTxt = CONCAT(mTxt, ', Tel: ', Telefono);
+			END IF;
+			
+			IF mStr = "" THEN
+				SET mStr = mTxt;
+			ELSE
+				SET mStr  = CONCAT(mStr,'. ' , mTxt);
+			END IF;
+	END LOOP;
+
+	CLOSE cur1;
+  
+RETURN mStr;
+
+
+
+END$$
+
+DELIMITER ;
+
+
+-- --------------------------------
+-- - Funcion devuelve si aplica el producto a la sucursal
+-- - 11/Enero/2019
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getAplicaCredPdtoPorSuc`$$
+
+CREATE FUNCTION `getAplicaCredPdtoPorSuc`(IDPdto INT(8), mSuc VARCHAR(40)) RETURNS BOOLEAN
+BEGIN
+	DECLARE mIncluir BOOLEAN DEFAULT FALSE;
+	DECLARE IdHay INT(4) DEFAULT 0;
+	
+	SET IdHay = ( SELECT COUNT(`clave_del_parametro`) FROM `creditos_productos_otros_parametros` WHERE    (( `clave_del_parametro` = 'APLICA_SUCURSALES' ) AND ( `clave_del_producto` = IDPdto )) AND (INSTR (`valor_del_parametro`, mSuc)>0 OR INSTR (`valor_del_parametro`, 'todas')>0) AND (INSTR (`valor_del_parametro`, CONCAT('-',mSuc))<=0) );
+	 
+	IF ISNULL(IdHay) THEN
+		SET IdHay = 0;
+		SET mIncluir = FALSE;
+	END IF;
+	
+	IF IdHay > 0 THEN
+		SET mIncluir = TRUE;
+	END IF;
+	
+	
+	RETURN mIncluir;
+	
+    END$$
+
+DELIMITER ;
+
+
+
 
