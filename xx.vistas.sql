@@ -2424,4 +2424,43 @@ HAVING capital = monto_autorizado
 DELIMITER ;
 
 
+-- - --------------------------------
+-- - Vista de Scoring1
+-- - Septiembre / 2018
+-- - --------------------------------
+
+	
+DELIMITER $$
+
+DROP VIEW IF EXISTS `vw_scoring1`$$
+DROP TABLE IF EXISTS `vw_scoring1`$$
+
+CREATE
+    VIEW `vw_scoring1` 
+    AS
+
+SELECT   `numero_socio` AS `persona`,
+`clave_de_credito` AS `credito`,
+`numero_de_parcialidad`,
+IF(`pag_cap`>=`capital`,1,0) AS  `recuperacion`,
+IF(`pag_cap`>=`capital` AND `fecha_de_pago`>=`pag_fecha`,1,0) AS  `puntualidad`,
+(CASE WHEN NOW() >= `fecha_de_pago` THEN
+DATEDIFF(NOW(), `fecha_de_pago`)
+ELSE 
+IF(`pag_fecha`>=`fecha_de_pago`, DATEDIFF(`pag_fecha`, `fecha_de_pago`), 0) 
+END)
+AS  `dias_de_atraso`,
+`periocidad_de_pago` AS `periodicidad`,
+`dias_autorizados` AS `dias_autorizados`,
+`capital`,
+`pag_cap` AS `capital_pagado`,
+`pag_fecha` AS `fecha_de_pago`,
+`fecha_de_pago` AS `fecha_de_vencimiento`
+FROM     `creditos_plan_de_pagos` 
+INNER JOIN `creditos_solicitud`  ON `creditos_plan_de_pagos`.`clave_de_credito` = `creditos_solicitud`.`numero_solicitud` 
+WHERE `fecha_de_pago`<=NOW() AND `estatusactivo`=1
+
+;$$
+
+DELIMITER ;
 

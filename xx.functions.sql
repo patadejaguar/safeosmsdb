@@ -3249,7 +3249,8 @@ SUM((CASE WHEN (`subclasificacion` = 141) THEN (`operaciones_mvtos`.`afectacion_
 SUM((CASE WHEN (`subclasificacion` = 0) THEN (`operaciones_mvtos`.`afectacion_real` * `afectacion`) ELSE 0 END)) AS `otros`,
 SUM((CASE WHEN (`subclasificacion` = 151) THEN (`operaciones_mvtos`.`afectacion_real` * `afectacion`) ELSE 0 END)) AS `impuesto`,
 
-SUM(`operaciones_mvtos`.`afectacion_real` * `afectacion`) AS `total`
+SUM(`operaciones_mvtos`.`afectacion_real` * `afectacion`) AS `total`,
+SUM((CASE WHEN (`subclasificacion` = 120) THEN 1 ELSE 0 END)) AS `numero_pagos`
 
 FROM (`operaciones_mvtos`
    JOIN `eacp_config_bases_de_integracion_miembros`
@@ -4003,10 +4004,16 @@ CREATE FUNCTION `getEsDoctoEntregadoByP`(IDPers BIGINT(25), vTipo INT(8)) RETURN
 BEGIN
 	
 	DECLARE IDNe BOOLEAN DEFAULT FALSE;
+	DECLARE EsMult BOOLEAN DEFAULT FALSE;
 	DECLARE nActs INT(4) DEFAULT 0;
 	
 	SET nActs = ( SELECT COUNT(*) FROM `personas_documentacion` WHERE `clave_de_persona`=IDPers AND `estatus`=1 AND `tipo_de_documento`=vTipo );
-	 
+	
+	SET EsMult = ( SELECT IF(`es_mult`=1, TRUE, FALSE) AS `result` FROM `personas_documentacion_tipos` WHERE `clave_de_control`=vTipo );
+
+	IF ISNULL(EsMult) THEN
+		SET EsMult = FALSE;
+	END IF;
 	IF ISNULL(nActs) THEN
 		SET nActs = 0;
 	END IF;
@@ -4014,7 +4021,11 @@ BEGIN
 	IF nActs > 0 THEN
 		SET IDNe = TRUE;
 	END IF;
-	
+
+	IF EsMult = TRUE THEN
+		SET IDNe = FALSE;
+	END IF;
+
 	RETURN IDNe;
     END$$
 
