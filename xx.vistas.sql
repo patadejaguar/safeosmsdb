@@ -263,7 +263,24 @@ DELIMITER $$
 DROP VIEW IF EXISTS `creditos_no_castigados`$$
 DROP TABLE IF EXISTS `creditos_no_castigados`$$
 
-CREATE VIEW `creditos_no_castigados` AS (select `creditos_solicitud`.`numero_socio` AS `codigo`,`socios`.`nombre` AS `nombre`,`creditos_solicitud`.`numero_solicitud` AS `solicitud`,`creditos_tipoconvenio`.`descripcion_tipoconvenio` AS `producto`,`creditos_solicitud`.`fecha_ministracion` AS `fecha_ministracion`,`creditos_solicitud`.`saldo_actual` AS `saldo`,`creditos_solicitud`.`fecha_ultimo_mvto` AS `ultima_afectacion` from ((`creditos_solicitud` join `creditos_tipoconvenio`) join `socios`) where ((`creditos_solicitud`.`estatus_actual` <> 50) and (`creditos_solicitud`.`saldo_actual` <> 0) and (`socios`.`codigo` = `creditos_solicitud`.`numero_socio`) and (`creditos_tipoconvenio`.`idcreditos_tipoconvenio` = `creditos_solicitud`.`tipo_convenio`)))$$
+CREATE VIEW `creditos_no_castigados` AS (
+
+	select `creditos_solicitud`.`numero_socio` 			AS `codigo`,
+	`socios`.`nombre` 									AS `nombre`,
+	`creditos_solicitud`.`numero_solicitud` 			AS `solicitud`,
+	`creditos_tipoconvenio`.`descripcion_tipoconvenio` 	AS `producto`,
+	`creditos_solicitud`.`fecha_ministracion` 			AS `fecha_ministracion`,
+	`creditos_solicitud`.`saldo_actual` 				AS `saldo`,
+	`creditos_solicitud`.`fecha_ultimo_mvto` 			AS `ultima_afectacion` 
+	from ((`creditos_solicitud` join `creditos_tipoconvenio`) join `socios`) 
+	where ((`creditos_solicitud`.`estatus_actual` <> 50) 
+	and (`creditos_solicitud`.`saldo_actual` <> 0) 
+	and (`socios`.`codigo` = `creditos_solicitud`.`numero_socio`) 
+	and (`creditos_tipoconvenio`.`idcreditos_tipoconvenio` = `creditos_solicitud`.`tipo_convenio`))
+
+)
+
+$$
 
 DELIMITER ;
 
@@ -305,39 +322,39 @@ DELIMITER $$
 DROP VIEW IF EXISTS `creditos`$$
 DROP TABLE IF EXISTS `creditos`$$
 
-CREATE VIEW `creditos` AS SELECT `creditos_solicitud`.`numero_socio` 	AS `numero_socio`,
-`creditos_solicitud`.`numero_solicitud` 				AS `solicitud`,
-`creditos_modalidades`.`descripcion_modalidades` 			AS `modalidad`,
-`creditos_tipoconvenio`.`descripcion_tipoconvenio` 			AS `convenio`,
-`creditos_solicitud`.`fecha_ministracion` 				AS `fecha_ministracion`,
-`creditos_solicitud`.`monto_autorizado` 				AS `monto_autorizado`,
-format((`creditos_solicitud`.`dias_autorizados` / 30.41666666),0) 	AS `plazo`,
-`creditos_solicitud`.`fecha_vencimiento` 				AS `fecha_vencimiento`,
-`creditos_solicitud`.`saldo_actual` 					AS `saldo_actual`,
-`creditos_solicitud`.`saldo_vencido`					AS `saldo_vencido`,
-`creditos_solicitud`.`interes_diario` 					AS `interes_diario`,
-`creditos_periocidadpagos`.`descripcion_periocidadpagos` 		AS `periocidad`,
-`creditos_solicitud`.`sucursal` 					AS `sucursal`,
-`creditos_solicitud`.`estatus_actual` 					AS `estatus`,
-(`creditos_tipoconvenio`.`porciento_garantia_liquida` * 100) 		AS `tasa_gtialiq`,
+CREATE VIEW `creditos` AS 
+	SELECT `creditos_solicitud`.`numero_socio` 					AS `numero_socio`,
+	`creditos_solicitud`.`numero_solicitud` 					AS `solicitud`,
+	`creditos_modalidades`.`descripcion_modalidades` 			AS `modalidad`,
+	`creditos_tipoconvenio`.`descripcion_tipoconvenio` 			AS `convenio`,
+	`creditos_solicitud`.`fecha_ministracion` 					AS `fecha_ministracion`,
+	`creditos_solicitud`.`monto_autorizado` 					AS `monto_autorizado`,
+	format((`creditos_solicitud`.`dias_autorizados` / 30.41666666),0) 	AS `plazo`,
+	`creditos_solicitud`.`fecha_vencimiento` 					AS `fecha_vencimiento`,
+	`creditos_solicitud`.`saldo_actual` 						AS `saldo_actual`,
+	`creditos_solicitud`.`saldo_vencido`						AS `saldo_vencido`,
+	`creditos_solicitud`.`interes_diario` 						AS `interes_diario`,
+	`creditos_periocidadpagos`.`descripcion_periocidadpagos` 	AS `periocidad`,
+	`creditos_solicitud`.`sucursal` 							AS `sucursal`,
+	`creditos_solicitud`.`estatus_actual` 						AS `estatus`,
+	(`creditos_tipoconvenio`.`porciento_garantia_liquida` * 100)	AS `tasa_gtialiq`,
+	`creditos_solicitud`.`pagos_autorizados` 					AS `pagos`,
+	`creditos_estatus`.`descripcion_estatus` 					AS `estatus_credito`,
+	CONCAT(`creditos_solicitud`.`numero_solicitud`,'-',
+		     getFechaMX(`creditos_solicitud`.`fecha_ministracion`),'-',
+		     `creditos_tipoconvenio`.`nombre_corto`,'-',
+		     `creditos_periocidadpagos`.`descripcion_periocidadpagos`,'-',
+		     `creditos_estatus`.`descripcion_estatus`,'-',
+		     IF(`creditos_solicitud`.`saldo_actual`>0,`creditos_solicitud`.`saldo_actual`, '')) AS `descripcion`,
 
-`creditos_solicitud`.`pagos_autorizados` 				AS `pagos`,
-`creditos_estatus`.`descripcion_estatus` 					AS `estatus_credito`,
-CONCAT(`creditos_solicitud`.`numero_solicitud`,'-',
-         getFechaMX(`creditos_solicitud`.`fecha_ministracion`),'-',
-         `creditos_tipoconvenio`.`nombre_corto`,'-',
-         `creditos_periocidadpagos`.`descripcion_periocidadpagos`,'-',
-         `creditos_estatus`.`descripcion_estatus`,'-',
-         IF(`creditos_solicitud`.`saldo_actual`>0,`creditos_solicitud`.`saldo_actual`, '')) AS `descripcion`,
+	IF((`creditos_solicitud`.`monto_autorizado`>0 AND `creditos_solicitud`.`estatus_actual`!=99 AND `creditos_solicitud`.`estatus_actual`!=98 AND `creditos_solicitud`.`estatus_actual`!=50),1,0) 		AS `estatusactivo`,
+	`creditos_solicitud`.`monto_parcialidad`							AS `parcialidad`
 
-IF((`creditos_solicitud`.`monto_autorizado`>0 AND `creditos_solicitud`.`estatus_actual`!=99 AND `creditos_solicitud`.`estatus_actual`!=98 AND `creditos_solicitud`.`estatus_actual`!=50),1,0) 		AS `estatusactivo`,
-`creditos_solicitud`.`monto_parcialidad`							AS `parcialidad`
-
-FROM     `creditos_solicitud` 
-INNER JOIN `creditos_modalidades`  ON `creditos_solicitud`.`tipo_credito` = `creditos_modalidades`.`idcreditos_modalidades` 
-INNER JOIN `creditos_periocidadpagos`  ON `creditos_solicitud`.`periocidad_de_pago` = `creditos_periocidadpagos`.`idcreditos_periocidadpagos` 
-INNER JOIN `creditos_tipoconvenio`  ON `creditos_solicitud`.`tipo_convenio` = `creditos_tipoconvenio`.`idcreditos_tipoconvenio` 
-INNER JOIN `creditos_estatus`  ON `creditos_solicitud`.`estatus_actual` = `creditos_estatus`.`idcreditos_estatus` 
+	FROM     `creditos_solicitud` 
+	INNER JOIN `creditos_modalidades`  ON `creditos_solicitud`.`tipo_credito` = `creditos_modalidades`.`idcreditos_modalidades` 
+	INNER JOIN `creditos_periocidadpagos`  ON `creditos_solicitud`.`periocidad_de_pago` = `creditos_periocidadpagos`.`idcreditos_periocidadpagos` 
+	INNER JOIN `creditos_tipoconvenio`  ON `creditos_solicitud`.`tipo_convenio` = `creditos_tipoconvenio`.`idcreditos_tipoconvenio` 
+	INNER JOIN `creditos_estatus`  ON `creditos_solicitud`.`estatus_actual` = `creditos_estatus`.`idcreditos_estatus` 
 
 
 
@@ -819,6 +836,7 @@ DELIMITER ;
 
 -- SDPM de Planes de Pago
 --
+
 DELIMITER $$
 
 DROP VIEW IF EXISTS `creditos_mvtos_asdpm_planes`$$
@@ -826,14 +844,14 @@ DROP TABLE IF EXISTS `creditos_mvtos_asdpm_planes`$$
  
 CREATE VIEW `creditos_mvtos_asdpm_planes` AS (
 SELECT SQL_CACHE
-	`eacp_config_bases_de_integracion_miembros`.`codigo_de_base` 	AS `codigo_de_base`,
+	2620	AS `codigo_de_base`,
 	`operaciones_mvtos`.`socio_afectado`                         	AS `socio`,
 	`operaciones_mvtos`.`docto_afectado`                         	AS `documento`,
 	`operaciones_mvtos`.`recibo_afectado`                        	AS `recibo`,
 	`operaciones_mvtos`.`fecha_afectacion`                       	AS `fecha`,
 	`operaciones_mvtos`.`tipo_operacion`                         	AS `operacion`,
 	`operaciones_mvtos`.`afectacion_real`                        	AS `monto`,
-	`eacp_config_bases_de_integracion_miembros`.`afectacion` 	AS `afectacion`,
+	BS.`afectacion` 	AS `afectacion`,
 	`operaciones_mvtos`.`periodo_socio`                        	AS `periodo`,
 	`creditos_solicitud`.`periocidad_de_pago`			AS `credito_periocidad`,
 	`creditos_solicitud`.`tipo_de_pago`       			AS `credito_tipo_de_pago`,
@@ -841,22 +859,24 @@ SELECT SQL_CACHE
 FROM
  
         `operaciones_mvtos` `operaciones_mvtos`
-                INNER JOIN `eacp_config_bases_de_integracion_miembros`
-                `eacp_config_bases_de_integracion_miembros`
-                ON `operaciones_mvtos`.`tipo_operacion` =
-                `eacp_config_bases_de_integracion_miembros`.`miembro`
                         INNER JOIN `creditos_solicitud` `creditos_solicitud`
                         ON `operaciones_mvtos`.`docto_afectado` = `creditos_solicitud`.
                         `numero_solicitud`
- 
-WHERE ((`eacp_config_bases_de_integracion_miembros`.`codigo_de_base` = 2620)
-                AND (`creditos_solicitud`.`periocidad_de_pago` != 360)
+         INNER JOIN (SELECT `miembro`,`afectacion` FROM `eacp_config_bases_de_integracion_miembros` WHERE `codigo_de_base` = 2620) BS
+         ON BS.`miembro` =  `operaciones_mvtos`.`tipo_operacion`
+WHERE (
+                (`creditos_solicitud`.`periocidad_de_pago` != 360)
                 AND     (`creditos_solicitud`.`numero_solicitud` >1)
 		AND (`creditos_solicitud`.`estatus_actual` < 98)
+		-- and docto_afectado=200012405
+		AND `operaciones_mvtos`.`fecha_afectacion` != '0000-00-00'
        )
-ORDER BY `eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,`operaciones_mvtos`.`docto_afectado`,`operaciones_mvtos`.`fecha_afectacion`)$$
+ORDER BY `operaciones_mvtos`.`docto_afectado`, `operaciones_mvtos`.`fecha_afectacion`,`operaciones_mvtos`.`periodo_socio`
+
+)$$
 
 DELIMITER ;
+
 -- END
 
 
@@ -979,39 +999,44 @@ SELECT
 MIN(`operaciones_mvtos`.`fecha_afectacion`)                  AS `fecha_de_pago`,
 MAX(`operaciones_mvtos`.`fecha_afectacion`)                   AS `fecha_de_vencimiento`,
 
+	`creditos_solicitud`.`monto_solicitado` AS `monto_original`,
+	`creditos_solicitud`.`saldo_actual`     AS `saldo_principal`,
+
 SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 410,`operaciones_mvtos`.`afectacion_real`,0)) AS `capital`,
 SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 411,`operaciones_mvtos`.`afectacion_real`,0)) AS `interes`,
 SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 413,`operaciones_mvtos`.`afectacion_real`,0)) AS `iva`,
 SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 412,`operaciones_mvtos`.`afectacion_real`,0)) AS `ahorro`,
 
-SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()) ,`operaciones_mvtos`.`afectacion_real`,0)) AS `capital_exigible`,
-SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 411 AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()),`operaciones_mvtos`.`afectacion_real`,0)) AS `interes_exigible`,
-SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 413  AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()),`operaciones_mvtos`.`afectacion_real`,0)) AS `iva_exigible`,
-SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 412  AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()),`operaciones_mvtos`.`afectacion_real`,0)) AS `ahorro_exigible`,
-SUM(IF(((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413)  AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()) , `operaciones_mvtos`.`afectacion_real`,0)) AS `otros_exigible`,
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` <= PRM.`fecha_corte`) ,`operaciones_mvtos`.`afectacion_real`,0)) AS `capital_exigible`,
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 411 AND `operaciones_mvtos`.`fecha_afectacion` <= PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `interes_exigible`,
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 413  AND `operaciones_mvtos`.`fecha_afectacion` <= PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `iva_exigible`,
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 412  AND `operaciones_mvtos`.`fecha_afectacion` <= PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `ahorro_exigible`,
+SUM(IF(((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413)  AND `operaciones_mvtos`.`fecha_afectacion` <= PRM.`fecha_corte`) , `operaciones_mvtos`.`afectacion_real`,0)) AS `otros_exigible`,
 
 ROUND(SUM(
-IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()),
-((`operaciones_mvtos`.`afectacion_real` * DATEDIFF(getFechaDeCorte(), `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_moratorio`) ) / getDivisorDeInteres())
+IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),
+((`operaciones_mvtos`.`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_moratorio`) ) / PRM.`divisor_interes`)
 , 0 )),2) AS `interes_moratorio`,
 
 
 ROUND(SUM(
-IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()),
-((`operaciones_mvtos`.`afectacion_real` * DATEDIFF(getFechaDeCorte(), `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_moratorio`) ) / getDivisorDeInteres())
+IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),
+((`operaciones_mvtos`.`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_moratorio`) ) / PRM.`divisor_interes`)
 , 0 )),2) AS `mora`,
 
 ROUND(
 (SUM(
-IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()),
-((`operaciones_mvtos`.`afectacion_real` * DATEDIFF(getFechaDeCorte(), `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_moratorio`) ) / getDivisorDeInteres())
+IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),
+((`operaciones_mvtos`.`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_moratorio`) ) / PRM.`divisor_interes`)
 , 0 ))*getTasaIVAGeneral()),2) AS `iva_moratorio`,
 
 
+IF(SUM(IF((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413),0, `operaciones_mvtos`.`afectacion_real`))<=0,0,
 SUM(
-IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()),
-(DATEDIFF(getFechaDeCorte(), `operaciones_mvtos`.`fecha_afectacion`))
-, 0 )) AS `dias`,
+IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),
+(DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`))
+, 0 ))
+) AS `dias`,
 
 
 
@@ -1023,6 +1048,22 @@ SUM(IF((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_
 
 MAX(IF((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413),`operaciones_mvtos`.`tipo_operacion`,0)) AS `clave_otros`
 
+,ROUND(
+(SUM(
+IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte` AND `creditos_solicitud`.`pagos_autorizados`=`operaciones_mvtos`.`periodo_socio`),
+((`creditos_solicitud`.`saldo_actual` * DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_interes`) ) / PRM.`divisor_interes`)
+, 0 )) ),2) AS `int_corriente`,
+
+ROUND(SUM(
+IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),
+((`operaciones_mvtos`.`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_interes`) ) / PRM.`divisor_interes`)
+, 0 )),2) AS `int_corriente_letra`
+
+,SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` > PRM.`fecha_corte`) ,`operaciones_mvtos`.`afectacion_real`,0)) AS `capital_nopagado`,
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 411 AND `operaciones_mvtos`.`fecha_afectacion` > PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `interes_nopagado`,
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 413  AND `operaciones_mvtos`.`fecha_afectacion` > PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `iva_nopagado`,
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 412  AND `operaciones_mvtos`.`fecha_afectacion` > PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `ahorro_nopagado`,
+SUM(IF(((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413)  AND `operaciones_mvtos`.`fecha_afectacion` > PRM.`fecha_corte`) , `operaciones_mvtos`.`afectacion_real`,0)) AS `otros_nopagado`
 
 FROM
 	`operaciones_mvtos` `operaciones_mvtos` 
@@ -1033,14 +1074,14 @@ FROM
 			`eacp_config_bases_de_integracion_miembros` 
 			ON `operaciones_mvtos`.`tipo_operacion` = 
 			`eacp_config_bases_de_integracion_miembros`.`miembro`
-
+INNER JOIN ( SELECT getTasaIVAGeneral() AS `tasa_iva`, getDivisorDeInteres() AS `divisor_interes`,getFechaDeCorte() AS  `fecha_corte`) PRM
 
 
 WHERE (`eacp_config_bases_de_integracion_miembros`.`codigo_de_base` = 2601)
 AND `operaciones_mvtos`.`tipo_operacion` != 420
 AND `operaciones_mvtos`.`tipo_operacion` != 431
 AND `operaciones_mvtos`.`tipo_operacion` != 146 /*gastos de cobranza*/ 
-
+-- AND `operaciones_mvtos`.`docto_afectado` != 200187901
 GROUP BY `operaciones_mvtos`.`docto_afectado`,`operaciones_mvtos`.`periodo_socio`
 ORDER BY
 `eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,
@@ -1048,7 +1089,118 @@ ORDER BY
 )$$
 
 DELIMITER ;
+--
+-- 07-julio-2014
+-- Vista en tiempo real de letras pendientes, actualizado a julio/2016
+-- -- Esta Vista tiene version en procedure
+DELIMITER $$
 
+DROP VIEW IF EXISTS `letras_pendientes`$$
+DROP TABLE IF EXISTS `letras_pendientes`$$
+DROP VIEW IF EXISTS `creditos_letras_pendientes_rt`$$
+DROP TABLE IF EXISTS `creditos_letras_pendientes_rt`$$
+
+CREATE  VIEW `creditos_letras_pendientes_rt` AS (
+SELECT
+  `eacp_config_bases_de_integracion_miembros`.`codigo_de_base` AS `codigo_de_base`,
+  `operaciones_mvtos`.`socio_afectado`                         AS `socio_afectado`,
+
+`operaciones_mvtos`.`socio_afectado`                         AS `persona`,
+`operaciones_mvtos`.`docto_afectado`                         AS `credito`,
+`operaciones_mvtos`.`periodo_socio`                          AS `parcialidad`,
+
+  `operaciones_mvtos`.`docto_afectado`                         AS `docto_afectado`,
+  `operaciones_mvtos`.`periodo_socio`                          AS `periodo_socio`,
+MIN(`operaciones_mvtos`.`fecha_afectacion`)                  AS `fecha_de_pago`,
+MAX(`operaciones_mvtos`.`fecha_afectacion`)                   AS `fecha_de_vencimiento`,
+
+	`creditos_solicitud`.`monto_solicitado` AS `monto_original`,
+	`creditos_solicitud`.`saldo_actual`     AS `saldo_principal`,
+
+SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 410,`operaciones_mvtos`.`afectacion_real`,0)) AS `capital`,
+SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 411,`operaciones_mvtos`.`afectacion_real`,0)) AS `interes`,
+SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 413,`operaciones_mvtos`.`afectacion_real`,0)) AS `iva`,
+SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 412,`operaciones_mvtos`.`afectacion_real`,0)) AS `ahorro`,
+
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` <= PRM.`fecha_corte`) ,`operaciones_mvtos`.`afectacion_real`,0)) AS `capital_exigible`,
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 411 AND `operaciones_mvtos`.`fecha_afectacion` <= PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `interes_exigible`,
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 413  AND `operaciones_mvtos`.`fecha_afectacion` <= PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `iva_exigible`,
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 412  AND `operaciones_mvtos`.`fecha_afectacion` <= PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `ahorro_exigible`,
+SUM(IF(((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413)  AND `operaciones_mvtos`.`fecha_afectacion` <= PRM.`fecha_corte`) , `operaciones_mvtos`.`afectacion_real`,0)) AS `otros_exigible`,
+
+ROUND(SUM(
+IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),
+((`operaciones_mvtos`.`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_moratorio`) ) / PRM.`divisor_interes`)
+, 0 )),2) AS `interes_moratorio`,
+
+
+ROUND(SUM(
+IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),
+((`operaciones_mvtos`.`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_moratorio`) ) / PRM.`divisor_interes`)
+, 0 )),2) AS `mora`,
+
+ROUND(
+(SUM(
+IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),
+((`operaciones_mvtos`.`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_moratorio`) ) / PRM.`divisor_interes`)
+, 0 ))*getTasaIVAGeneral()),2) AS `iva_moratorio`,
+
+
+IF(SUM(IF((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413),0, `operaciones_mvtos`.`afectacion_real`))<=0,0,
+SUM(
+IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),
+(DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`))
+, 0 ))
+) AS `dias`,
+
+
+
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413), `operaciones_mvtos`.`afectacion_real`,0)) AS `otros`,
+
+SUM((`operaciones_mvtos`.`afectacion_real` * `eacp_config_bases_de_integracion_miembros`.`afectacion`)) AS `letra`,
+
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413),0, `operaciones_mvtos`.`afectacion_real`)) AS `total_sin_otros`,
+
+MAX(IF((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413),`operaciones_mvtos`.`tipo_operacion`,0)) AS `clave_otros`
+
+,ROUND(
+(SUM(
+IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte` AND `creditos_solicitud`.`pagos_autorizados`=`operaciones_mvtos`.`periodo_socio`),
+((`creditos_solicitud`.`saldo_actual` * DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_interes`) ) / PRM.`divisor_interes`)
+, 0 )) ),2) AS `int_corriente`,
+
+ROUND(SUM(
+IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),
+((`operaciones_mvtos`.`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_interes`) ) / PRM.`divisor_interes`)
+, 0 )),2) AS `int_corriente_letra`
+
+,SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` > PRM.`fecha_corte`) ,`operaciones_mvtos`.`afectacion_real`,0)) AS `capital_nopagado`,
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 411 AND `operaciones_mvtos`.`fecha_afectacion` > PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `interes_nopagado`,
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 413  AND `operaciones_mvtos`.`fecha_afectacion` > PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `iva_nopagado`,
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 412  AND `operaciones_mvtos`.`fecha_afectacion` > PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `ahorro_nopagado`,
+SUM(IF(((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413)  AND `operaciones_mvtos`.`fecha_afectacion` > PRM.`fecha_corte`) , `operaciones_mvtos`.`afectacion_real`,0)) AS `otros_nopagado`
+
+FROM
+	`operaciones_mvtos` `operaciones_mvtos` 
+		INNER JOIN `creditos_solicitud` `creditos_solicitud` 
+		ON `operaciones_mvtos`.`docto_afectado` = `creditos_solicitud`.
+		`numero_solicitud` 
+			INNER JOIN `eacp_config_bases_de_integracion_miembros` 
+			`eacp_config_bases_de_integracion_miembros` 
+			ON `operaciones_mvtos`.`tipo_operacion` = 
+			`eacp_config_bases_de_integracion_miembros`.`miembro`
+INNER JOIN ( SELECT getTasaIVAGeneral() AS `tasa_iva`, getDivisorDeInteres() AS `divisor_interes`,getFechaDeCorte() AS  `fecha_corte`) PRM
+			
+     
+WHERE (`eacp_config_bases_de_integracion_miembros`.`codigo_de_base` = 2601)
+AND `operaciones_mvtos`.`tipo_operacion` != 420 
+AND `operaciones_mvtos`.`tipo_operacion` != 431
+AND `creditos_solicitud`.`saldo_actual`  > 0
+GROUP BY `operaciones_mvtos`.`docto_afectado`
+ORDER BY `eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,`operaciones_mvtos`.`docto_afectado`
+)$$
+
+DELIMITER ;
 -- 08-octubre-2013
 
 DELIMITER $$
@@ -1073,72 +1225,7 @@ GROUP BY `operaciones_mvtos`.`docto_afectado`)$$
 
 DELIMITER ;
 
---
--- 07-julio-2014
--- Vista en tiempo real de letras pendientes, actualizado a julio/2016
--- -- Esta Vista tiene version en procedure
-DELIMITER $$
 
-DROP VIEW IF EXISTS `letras_pendientes`$$
-DROP TABLE IF EXISTS `letras_pendientes`$$
-DROP VIEW IF EXISTS `creditos_letras_pendientes_rt`$$
-DROP TABLE IF EXISTS `creditos_letras_pendientes_rt`$$
-
-CREATE  VIEW `creditos_letras_pendientes_rt` AS (
-SELECT SQL_CACHE
-  `eacp_config_bases_de_integracion_miembros`.`codigo_de_base` AS `codigo_de_base`,
-  `operaciones_mvtos`.`socio_afectado`                         AS `socio_afectado`,
-  `operaciones_mvtos`.`docto_afectado`                         AS `docto_afectado`,
-MIN(`operaciones_mvtos`.`periodo_socio`)                     AS `periodo_socio`,
-MAX(`operaciones_mvtos`.`periodo_socio`)                     AS `ultimo_periodo`,
-
-MIN(`operaciones_mvtos`.`fecha_afectacion`)                  AS `fecha_de_pago`,
-MAX(`operaciones_mvtos`.`fecha_vcto`)                  AS `fecha_de_vencimiento`,
-SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 410,`operaciones_mvtos`.`afectacion_real`,0)) AS `capital`,
-
-SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 411,`operaciones_mvtos`.`afectacion_real`,0)) AS `interes`,
-SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 413,`operaciones_mvtos`.`afectacion_real`,0)) AS `iva`,
-SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 412,`operaciones_mvtos`.`afectacion_real`,0)) AS `ahorro`,
-SUM(IF((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413) , `operaciones_mvtos`.`afectacion_real`,0)) AS `otros`,
-
-SUM((`operaciones_mvtos`.`afectacion_real` * `eacp_config_bases_de_integracion_miembros`.`afectacion`)) AS `letra`,
-
-
-SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()) ,`operaciones_mvtos`.`afectacion_real`,0)) AS `capital_exigible`,
-SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 411 AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()),`operaciones_mvtos`.`afectacion_real`,0)) AS `interes_exigible`,
-SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 413  AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()),`operaciones_mvtos`.`afectacion_real`,0)) AS `iva_exigible`,
-SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 412  AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()),`operaciones_mvtos`.`afectacion_real`,0)) AS `ahorro_exigible`,
-SUM(IF(((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413)  AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()) , `operaciones_mvtos`.`afectacion_real`,0)) AS `otros_exigible`,
-
-SUM(
-IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()),
-((`operaciones_mvtos`.`afectacion_real` * DATEDIFF(getFechaDeCorte(), `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_moratorio`) ) / getDivisorDeInteres())
-, 0 )) AS `interes_moratorio`,
-
-	`creditos_solicitud`.`monto_solicitado` AS `monto_original`,
-	`creditos_solicitud`.`saldo_actual`     AS `saldo_principal` 
-	
-FROM 
-
-	`operaciones_mvtos` `operaciones_mvtos` 
-		INNER JOIN `creditos_solicitud` `creditos_solicitud` 
-		ON `operaciones_mvtos`.`docto_afectado` = `creditos_solicitud`.
-		`numero_solicitud` 
-			INNER JOIN `eacp_config_bases_de_integracion_miembros` 
-			`eacp_config_bases_de_integracion_miembros` 
-			ON `operaciones_mvtos`.`tipo_operacion` = 
-			`eacp_config_bases_de_integracion_miembros`.`miembro`
-			
-     
-WHERE (`eacp_config_bases_de_integracion_miembros`.`codigo_de_base` = 2601)
-AND `operaciones_mvtos`.`tipo_operacion` != 420 
-AND `operaciones_mvtos`.`tipo_operacion` != 431
-AND `creditos_solicitud`.`saldo_actual`  > 0
-GROUP BY `operaciones_mvtos`.`docto_afectado`
-ORDER BY `eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,`operaciones_mvtos`.`docto_afectado`
-)$$
-
-DELIMITER ;
 
 -- 14Enero2014
 DELIMITER $$

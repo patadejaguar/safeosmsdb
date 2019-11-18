@@ -755,6 +755,7 @@ SELECT
   `socios`.`dependencia`                       AS `empresa`,
   `socios`.`codigo`                            AS `codigo`,
   `socios`.`nombre`                            AS `nombre`,
+  `socios`.`sucursal`                          AS `sucursal`,
   `creditos_solicitud`.`tipo_convenio`         AS `producto`,
   `creditos_solicitud`.`numero_solicitud`      AS `credito`,
   `operaciones_mvtos`.`fecha_afectacion`        AS `fecha`,
@@ -863,6 +864,10 @@ ALTER TABLE `historial_de_pagos` ADD INDEX `persona` (`persona`), ADD INDEX `cre
 END$$
 
 DELIMITER ;
+
+
+
+
 
 DELIMITER $$
 
@@ -1669,6 +1674,9 @@ CREATE
 
 	DROP VIEW IF EXISTS `creditos_letras_del_dia`;
 	DROP TABLE IF EXISTS `creditos_letras_del_dia`;
+
+
+
 -- Cambiar fecha
 
 SET @fecha_de_corte = DATE_ADD(NOW(), INTERVAL 12 HOUR);
@@ -1705,7 +1713,7 @@ FROM
 			ON `creditos_solicitud`.`tipo_de_pago` = `creditos_tipo_de_pago`.
 			`idcreditos_tipo_de_pago`
 		
-		WHERE IF((`creditos_tipo_de_pago`.`con_capital`=1 AND `letras`.`capital` <=0), 0, 1) >0 AND fecha_de_pago <= getFechaDeCorte() AND `creditos_solicitud`.`saldo_actual`>0
+		WHERE IF((`creditos_tipo_de_pago`.`con_capital`=1 AND `letras`.`capital` <=0), 0, 1) >0 AND `fecha_de_pago` <= getFechaDeCorte() AND `creditos_solicitud`.`saldo_actual`>0
 
 ) ;
 
@@ -1817,7 +1825,7 @@ CREATE TABLE `tmp_colonias_activas` AS
 
 SELECT
 	`general_colonias`.`codigo_postal`,
-	`general_colonias`.`nombre_colonia` AS `nombre`,
+	MAX(`general_colonias`.`nombre_colonia`) AS `nombre`,
 	COUNT(`general_colonias`.`idgeneral_colonia`) AS `numero`,
 	`general_colonias`.`codigo_de_estado`,
 	`general_colonias`.`codigo_de_municipio`,
@@ -1841,9 +1849,11 @@ GROUP BY
 	ALTER TABLE `tmp_colonias_activas` ADD PRIMARY KEY (`codigo_postal`);
 	ALTER TABLE `tmp_colonias_activas` ADD COLUMN `idlocalidad` INT NULL DEFAULT 0 AFTER `clave_en_sic`;
 	ALTER TABLE `tmp_colonias_activas` ADD COLUMN `nombre_localidad` VARCHAR(100) NULL DEFAULT '' AFTER `idlocalidad`;
-	UPDATE `tmp_colonias_activas` SET `idlocalidad`= (SELECT `clave_unica` FROM `catalogos_localidades` WHERE `nombre_de_la_localidad` LIKE CONCAT("%", `tmp_colonias_activas`.`nombre_municipio`, "%")
-AND `tmp_colonias_activas`.`codigo_de_estado`=`catalogos_localidades`.`clave_de_estado` LIMIT 0,1) WHERE ISNULL(idlocalidad) OR  idlocalidad = 0;
+
+	UPDATE `tmp_colonias_activas` SET `idlocalidad`= (SELECT `clave_unica` FROM `catalogos_localidades` WHERE `nombre_de_la_localidad` LIKE CONCAT("%", `tmp_colonias_activas`.`nombre_municipio`, "%") AND `tmp_colonias_activas`.`codigo_de_estado`=`catalogos_localidades`.`clave_de_estado` LIMIT 0,1) WHERE ISNULL(idlocalidad) OR  idlocalidad = 0;
+
 	UPDATE `tmp_colonias_activas` SET `idlocalidad`= (SELECT `clave_unica` FROM `catalogos_localidades` WHERE `tmp_colonias_activas`.`codigo_de_estado`=`catalogos_localidades`.`clave_de_estado` LIMIT 0,1) WHERE ISNULL(idlocalidad) OR  idlocalidad = 0;
+
 	UPDATE `tmp_colonias_activas` SET `nombre_localidad`= (SELECT `nombre_de_la_localidad` FROM `catalogos_localidades` WHERE `clave_unica`= `tmp_colonias_activas`.`idlocalidad` LIMIT 0,1);
     END$$
 
@@ -2600,7 +2610,7 @@ DECLARE TotalActual DOUBLE(18,2) DEFAULT 0;
 DECLARE CreditoActivo BIGINT(20) DEFAULT 0;
 DECLARE IDPersona BIGINT(20) DEFAULT 0;
 DECLARE done INT DEFAULT FALSE;
-DECLARE cur1 CURSOR FOR SELECT `numero_socio`, COUNT(`numero_solicitud`) AS `creditos`, SUM(IF(`saldo_actual`>1, 1, 0)) AS `con_saldo`, `numero_solicitud` AS `activo`,
+DECLARE cur1 CURSOR FOR SELECT `numero_socio`, COUNT(`numero_solicitud`) AS `creditos`, SUM(IF(`saldo_actual`>1, 1, 0)) AS `con_saldo`, MAX(IF(`saldo_actual`>1,`numero_solicitud`,0)) AS `activo`,
 SUM(`monto_autorizado`) AS `TotalAutorizado`, SUM(`monto_solicitado`) AS `TotalSolicitado`, SUM(`saldo_actual`) AS `TotalActual`
  FROM `creditos_solicitud` GROUP BY `numero_socio`
 ORDER BY `numero_socio`,`creditos_solicitud`.`saldo_actual` DESC,`creditos_solicitud`.`fecha_ministracion` DESC;
@@ -2686,6 +2696,10 @@ ALTER TABLE `tmp_personas_domicilios` CHANGE COLUMN `domicilio` `domicilio` VARC
 ALTER TABLE `tmp_personas_domicilios` CHANGE COLUMN `codigo` `codigo` BIGINT(20) UNSIGNED NOT NULL ,ADD COLUMN `idlocalidad` INT(8) NULL DEFAULT '0' AFTER `domicilio`,ADD COLUMN `idmunicipio` INT(3) NULL DEFAULT '0' AFTER `idlocalidad`,ADD COLUMN `identidadfed` INT(3) NULL DEFAULT '0' AFTER `idmunicipio`, ADD COLUMN `idcodigopostal` INT(8) NULL DEFAULT '0' AFTER `identidadfed`,
 ADD COLUMN `iddomicilio` INT(8) NULL DEFAULT '0' AFTER `idcodigopostal`,ADD COLUMN `idunicomun` VARCHAR(8) NULL DEFAULT '' AFTER `iddomicilio`;
 
+-- 04jul2019
+ALTER TABLE `tmp_personas_domicilios` ADD COLUMN `nestado` VARCHAR(80) NULL DEFAULT '' AFTER `idunicomun`, ADD COLUMN `nmunicipio` VARCHAR(100) NULL DEFAULT '' AFTER `nestado`,  ADD COLUMN `nlocalidad` VARCHAR(100) NULL DEFAULT '' AFTER `nestado`;
+--
+
 UPDATE `tmp_personas_domicilios` SET `iddomicilio` = (SELECT `idsocios_vivienda` FROM `socios_vivienda` WHERE `socios_vivienda`.`socio_numero`=`tmp_personas_domicilios`.`codigo` ORDER BY `principal` DESC LIMIT 0,1 );
 
 UPDATE `tmp_personas_domicilios`,`socios_vivienda`
@@ -2698,7 +2712,11 @@ IF(TRIM(`socios_vivienda`.`numero_interior`) = '', '', CONCAT(',', `socios_vivie
 `tmp_personas_domicilios`.`idmunicipio`=`socios_vivienda`.`clave_de_municipio`,
 `tmp_personas_domicilios`.`identidadfed`=`socios_vivienda`.`clave_de_entidadfederativa`,
 `tmp_personas_domicilios`.`idcodigopostal`=`socios_vivienda`.`codigo_postal`,
-`tmp_personas_domicilios`.`idunicomun`=CONCAT(LPAD(`socios_vivienda`.`clave_de_entidadfederativa`,2,0),LPAD(`socios_vivienda`.`clave_de_municipio`,4,0) )
+`tmp_personas_domicilios`.`idunicomun`=CONCAT(LPAD(`socios_vivienda`.`clave_de_entidadfederativa`,2,0),LPAD(`socios_vivienda`.`clave_de_municipio`,4,0) ),
+`tmp_personas_domicilios`.`nestado`=`socios_vivienda`.`estado`,
+`tmp_personas_domicilios`.`nmunicipio`=`socios_vivienda`.`municipio`,
+`tmp_personas_domicilios`.`nlocalidad`=`socios_vivienda`.`localidad`
+
 WHERE `tmp_personas_domicilios`.`iddomicilio`=`socios_vivienda`.`idsocios_vivienda`;
 
 
@@ -3535,7 +3553,22 @@ END $$
 
 DELIMITER ;
 
+-- -- 17 Noviembre 2019
+-- -- Creditos Montos
 
+DELIMITER $$
+
+DROP TRIGGER IF EXISTS `creditos_montos_BEFORE_UPDATE`$$
+
+CREATE DEFINER = CURRENT_USER TRIGGER `creditos_montos_BEFORE_UPDATE` BEFORE UPDATE ON `creditos_montos` FOR EACH ROW
+
+BEGIN
+
+SET NEW.modified_at = CURRENT_TIMESTAMP();
+
+END $$
+
+DELIMITER ;
 
 
 -- -- 
@@ -3559,6 +3592,19 @@ END $$
 
 DELIMITER ;
 
+-- -- 17 Noviembre 2019
+DELIMITER $$
+
+DROP TRIGGER IF EXISTS `captacion_cuentas_BEFORE_UPDATE`$$
+
+CREATE DEFINER = CURRENT_USER TRIGGER `captacion_cuentas_BEFORE_UPDATE` BEFORE UPDATE ON `captacion_cuentas` FOR EACH ROW
+BEGIN
+
+SET NEW.modified_at = CURRENT_TIMESTAMP();
+
+END $$
+
+DELIMITER ;
 
 
 
@@ -3714,6 +3760,23 @@ BEGIN
 IF NEW.numero_de_seguridad_social != '' THEN
 	UPDATE `socios_general` SET `nss`=NEW.numero_de_seguridad_social WHERE `codigo`=NEW.socio_aeconomica AND `nss` = '';
 END IF;
+
+END $$
+
+DELIMITER ;
+
+-- -- 17 Noviembre 2019
+-- -- Socios Memo
+
+DELIMITER $$
+
+DROP TRIGGER IF EXISTS `socios_memo_BEFORE_UPDATE`$$
+
+CREATE DEFINER = CURRENT_USER TRIGGER `socios_memo_BEFORE_UPDATE` BEFORE UPDATE ON `socios_memo` FOR EACH ROW
+
+BEGIN
+
+SET NEW.modified_at = CURRENT_TIMESTAMP();
 
 END $$
 
@@ -3875,6 +3938,8 @@ BEGIN
 
 DECLARE myDiff FLOAT(12,2) DEFAULT 0;
 DECLARE mSumRec DOUBLE(12,2) DEFAULT 0;
+
+SET NEW.modified_at = CURRENT_TIMESTAMP();
 
 IF NEW.persona_asociada >0 AND OLD.total_operacion != NEW.total_operacion THEN
 
@@ -4257,6 +4322,96 @@ BEGIN
 
 DELIMITER ;
 
+
+
+-- --------------------------------
+-- - Funcion devuelve el Numero de Creditos Procesados
+-- - junio/2019
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getNumCredsByPersona`$$
+
+CREATE FUNCTION `getNumCredsByPersona`(IDPersona BIGINT(20)) RETURNS INT(8)
+BEGIN
+	DECLARE NumId BIGINT(20) DEFAULT 0;
+	
+	SET NumId = ( SELECT COUNT(`numero_solicitud`) FROM `creditos_solicitud` WHERE `numero_socio`=IDPersona );
+	
+	 
+	IF ISNULL(NumId) THEN
+		SET NumId = 0;
+	END IF;
+	RETURN NumId;
+    END$$
+
+DELIMITER ;
+
+-- --------------------------------
+-- - Funcion devuelve el Numero de Creditos Sdo
+-- - junio/2019
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getNumCredsSdoByPersona`$$
+
+CREATE FUNCTION `getNumCredsSdoByPersona`(IDPersona BIGINT(20)) RETURNS INT(8)
+BEGIN
+	DECLARE NumId BIGINT(20) DEFAULT 0;
+	
+	SET NumId = ( SELECT COUNT(`numero_solicitud`) FROM `creditos_solicitud` WHERE `saldo_actual`>0 AND `estatus_actual` != 50 AND `numero_socio`=IDPersona );
+	
+	 
+	IF ISNULL(NumId) THEN
+		SET NumId = 0;
+	END IF;
+	RETURN NumId;
+    END$$
+
+DELIMITER ;
+
+
+-- --------------------------------
+-- Purgar Tabla de Montos.
+-- --------------------------------
+
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `setPurgeTablaMontos`$$
+
+CREATE PROCEDURE `setPurgeTablaMontos`( ) 
+
+BEGIN
+
+	DECLARE done INTEGER DEFAULT 0;
+	DECLARE  mStr VARCHAR(10) DEFAULT "";
+	DECLARE IDCredito BIGINT(25) DEFAULT 0;
+	DECLARE Numero INTEGER(4) DEFAULT 0;
+	DECLARE Clave INTEGER(11) DEFAULT 0;
+	DECLARE cur1 CURSOR FOR (SELECT `clave_de_credito`, COUNT(`idcreditos_montos`) AS `repetidos`, MIN(`idcreditos_montos`) AS `clave`  FROM `creditos_montos` GROUP BY `clave_de_credito` HAVING repetidos >1);
+
+	DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+	OPEN cur1;
+
+	read_loop: LOOP
+		FETCH cur1 INTO IDCredito,Numero,Clave;
+			IF done THEN
+				LEAVE read_loop;
+			END IF;
+			IF Numero > 1 THEN
+				DELETE FROM `creditos_montos` WHERE `clave_de_credito` = IDCredito AND `idcreditos_montos` != Clave;
+			END IF;
+
+			
+	END LOOP;
+
+	CLOSE cur1;
+
+END$$
 
 
 
