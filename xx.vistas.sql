@@ -1064,6 +1064,7 @@ SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 411 AND `operaciones_mvtos`.`fech
 SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 413  AND `operaciones_mvtos`.`fecha_afectacion` > PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `iva_nopagado`,
 SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 412  AND `operaciones_mvtos`.`fecha_afectacion` > PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `ahorro_nopagado`,
 SUM(IF(((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413)  AND `operaciones_mvtos`.`fecha_afectacion` > PRM.`fecha_corte`) , `operaciones_mvtos`.`afectacion_real`,0)) AS `otros_nopagado`
+,IF((`operaciones_mvtos`.`tipo_operacion` = 410 AND `operaciones_mvtos`.`periodo_socio`= (`creditos_solicitud`.`ultimo_periodo_afectado`+1)),  MMC.`cargos_cbza`,0) AS `gastos_de_cobranza`
 
 FROM
 	`operaciones_mvtos` `operaciones_mvtos` 
@@ -1075,7 +1076,7 @@ FROM
 			ON `operaciones_mvtos`.`tipo_operacion` = 
 			`eacp_config_bases_de_integracion_miembros`.`miembro`
 INNER JOIN ( SELECT getTasaIVAGeneral() AS `tasa_iva`, getDivisorDeInteres() AS `divisor_interes`,getFechaDeCorte() AS  `fecha_corte`) PRM
-
+INNER JOIN (SELECT   `clave_de_credito`,`cargos_cbza` FROM `creditos_montos`) MMC ON MMC.`clave_de_credito` = `creditos_solicitud`.`numero_solicitud`
 
 WHERE (`eacp_config_bases_de_integracion_miembros`.`codigo_de_base` = 2601)
 AND `operaciones_mvtos`.`tipo_operacion` != 420
@@ -1179,6 +1180,7 @@ SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 411 AND `operaciones_mvtos`.`fech
 SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 413  AND `operaciones_mvtos`.`fecha_afectacion` > PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `iva_nopagado`,
 SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 412  AND `operaciones_mvtos`.`fecha_afectacion` > PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `ahorro_nopagado`,
 SUM(IF(((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413)  AND `operaciones_mvtos`.`fecha_afectacion` > PRM.`fecha_corte`) , `operaciones_mvtos`.`afectacion_real`,0)) AS `otros_nopagado`
+,IF((`operaciones_mvtos`.`tipo_operacion` = 410 AND `operaciones_mvtos`.`periodo_socio`= (`creditos_solicitud`.`ultimo_periodo_afectado`+1)),  MMC.`cargos_cbza`,0) AS `gastos_de_cobranza`
 
 FROM
 	`operaciones_mvtos` `operaciones_mvtos` 
@@ -1190,7 +1192,7 @@ FROM
 			ON `operaciones_mvtos`.`tipo_operacion` = 
 			`eacp_config_bases_de_integracion_miembros`.`miembro`
 INNER JOIN ( SELECT getTasaIVAGeneral() AS `tasa_iva`, getDivisorDeInteres() AS `divisor_interes`,getFechaDeCorte() AS  `fecha_corte`) PRM
-			
+INNER JOIN (SELECT   `clave_de_credito`,`cargos_cbza` FROM `creditos_montos`) MMC ON MMC.`clave_de_credito` = `creditos_solicitud`.`numero_solicitud`
      
 WHERE (`eacp_config_bases_de_integracion_miembros`.`codigo_de_base` = 2601)
 AND `operaciones_mvtos`.`tipo_operacion` != 420 
@@ -2048,7 +2050,8 @@ SELECT
 	MAX(`empresas_cobranza`.`parcialidad`) AS `periodo`, 
 	SUM(IF(`empresas_cobranza`.`recibo`<=0 AND `empresas_cobranza`.`estado`=1,1,0)) AS `pendientes` 
 FROM
-	`empresas_cobranza` `empresas_cobranza` 
+	`empresas_cobranza` `empresas_cobranza`
+WHERE `monto_enviado`>0
 GROUP BY
 	`empresas_cobranza`.`clave_de_credito`
 );$$

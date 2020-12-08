@@ -789,8 +789,11 @@ FROM
 				INNER JOIN `creditos_solicitud` `creditos_solicitud` 
 				ON `operaciones_mvtos`.`docto_afectado` = `creditos_solicitud`.
 				`numero_solicitud` 
+
 					INNER JOIN `socios` `socios` 
-					ON `creditos_solicitud`.`numero_socio` = `socios`.`codigo` 
+					-- ON `creditos_solicitud`.`numero_socio` = `socios`.`codigo` 
+						ON `operaciones_recibos`.`numero_socio` = `socios`.`codigo` 
+
 						INNER JOIN `operaciones_tipos` `operaciones_tipos` 
 						ON `operaciones_mvtos`.`tipo_operacion` = 
 						`operaciones_tipos`.`idoperaciones_tipos` 
@@ -1503,38 +1506,85 @@ CREATE TABLE `creditos_letras_pendientes` AS
 SELECT
   `eacp_config_bases_de_integracion_miembros`.`codigo_de_base` AS `codigo_de_base`,
   `operaciones_mvtos`.`socio_afectado`                         AS `socio_afectado`,
+
+`operaciones_mvtos`.`socio_afectado`                         AS `persona`,
+`operaciones_mvtos`.`docto_afectado`                         AS `credito`,
+`operaciones_mvtos`.`periodo_socio`                          AS `parcialidad`,
+
   `operaciones_mvtos`.`docto_afectado`                         AS `docto_afectado`,
-MIN(`operaciones_mvtos`.`periodo_socio`)                     AS `periodo_socio`,
-MAX(`operaciones_mvtos`.`periodo_socio`)                     AS `ultimo_periodo`,
-
+  `operaciones_mvtos`.`periodo_socio`                          AS `periodo_socio`,
 MIN(`operaciones_mvtos`.`fecha_afectacion`)                  AS `fecha_de_pago`,
-MAX(`operaciones_mvtos`.`fecha_vcto`)                  AS `fecha_de_vencimiento`,
-SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 410,`operaciones_mvtos`.`afectacion_real`,0)) AS `capital`,
+MAX(`operaciones_mvtos`.`fecha_afectacion`)                   AS `fecha_de_vencimiento`,
 
+	`creditos_solicitud`.`monto_solicitado` AS `monto_original`,
+	`creditos_solicitud`.`saldo_actual`     AS `saldo_principal`,
+
+SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 410,`operaciones_mvtos`.`afectacion_real`,0)) AS `capital`,
 SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 411,`operaciones_mvtos`.`afectacion_real`,0)) AS `interes`,
 SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 413,`operaciones_mvtos`.`afectacion_real`,0)) AS `iva`,
 SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 412,`operaciones_mvtos`.`afectacion_real`,0)) AS `ahorro`,
-SUM(IF((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413) , `operaciones_mvtos`.`afectacion_real`,0)) AS `otros`,
+
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` <= PRM.`fecha_corte`) ,`operaciones_mvtos`.`afectacion_real`,0)) AS `capital_exigible`,
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 411 AND `operaciones_mvtos`.`fecha_afectacion` <= PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `interes_exigible`,
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 413  AND `operaciones_mvtos`.`fecha_afectacion` <= PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `iva_exigible`,
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 412  AND `operaciones_mvtos`.`fecha_afectacion` <= PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `ahorro_exigible`,
+SUM(IF(((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413)  AND `operaciones_mvtos`.`fecha_afectacion` <= PRM.`fecha_corte`) , `operaciones_mvtos`.`afectacion_real`,0)) AS `otros_exigible`,
+
+ROUND(SUM(
+IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),
+((`operaciones_mvtos`.`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_moratorio`) ) / PRM.`divisor_interes`)
+, 0 )),2) AS `interes_moratorio`,
+
+
+ROUND(SUM(
+IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),
+((`operaciones_mvtos`.`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_moratorio`) ) / PRM.`divisor_interes`)
+, 0 )),2) AS `mora`,
+
+ROUND(
+(SUM(
+IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),
+((`operaciones_mvtos`.`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_moratorio`) ) / PRM.`divisor_interes`)
+, 0 ))*getTasaIVAGeneral()),2) AS `iva_moratorio`,
+
+
+IF(SUM(IF((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413),0, `operaciones_mvtos`.`afectacion_real`))<=0,0,
+SUM(
+IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),
+(DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`))
+, 0 ))
+) AS `dias`,
+
+
+
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413), `operaciones_mvtos`.`afectacion_real`,0)) AS `otros`,
 
 SUM((`operaciones_mvtos`.`afectacion_real` * `eacp_config_bases_de_integracion_miembros`.`afectacion`)) AS `letra`,
 
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413),0, `operaciones_mvtos`.`afectacion_real`)) AS `total_sin_otros`,
 
-SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()) ,`operaciones_mvtos`.`afectacion_real`,0)) AS `capital_exigible`,
-SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 411 AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()),`operaciones_mvtos`.`afectacion_real`,0)) AS `interes_exigible`,
-SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 413  AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()),`operaciones_mvtos`.`afectacion_real`,0)) AS `iva_exigible`,
-SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 412  AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()),`operaciones_mvtos`.`afectacion_real`,0)) AS `ahorro_exigible`,
-SUM(IF(((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413)  AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()) , `operaciones_mvtos`.`afectacion_real`,0)) AS `otros_exigible`,
+MAX(IF((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413),`operaciones_mvtos`.`tipo_operacion`,0)) AS `clave_otros`
 
-SUM(
-IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()),
-((`operaciones_mvtos`.`afectacion_real` * DATEDIFF(getFechaDeCorte(), `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_moratorio` + `creditos_solicitud`.`tasa_interes`) ) / getDivisorDeInteres())
-, 0 )) AS `interes_moratorio`,
+,ROUND(
+(SUM(
+IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte` AND `creditos_solicitud`.`pagos_autorizados`=`operaciones_mvtos`.`periodo_socio`),
+((`creditos_solicitud`.`saldo_actual` * DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_interes`) ) / PRM.`divisor_interes`)
+, 0 )) ),2) AS `int_corriente`,
 
-	`creditos_solicitud`.`monto_solicitado` AS `monto_original`,
-	`creditos_solicitud`.`saldo_actual`     AS `saldo_principal` 
-	
-FROM 
+ROUND(SUM(
+IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),
+((`operaciones_mvtos`.`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_interes`) ) / PRM.`divisor_interes`)
+, 0 )),2) AS `int_corriente_letra`
 
+,SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` > PRM.`fecha_corte`) ,`operaciones_mvtos`.`afectacion_real`,0)) AS `capital_nopagado`,
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 411 AND `operaciones_mvtos`.`fecha_afectacion` > PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `interes_nopagado`,
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 413  AND `operaciones_mvtos`.`fecha_afectacion` > PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `iva_nopagado`,
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 412  AND `operaciones_mvtos`.`fecha_afectacion` > PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `ahorro_nopagado`,
+SUM(IF(((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413)  AND `operaciones_mvtos`.`fecha_afectacion` > PRM.`fecha_corte`) , `operaciones_mvtos`.`afectacion_real`,0)) AS `otros_nopagado`
+
+,IF((`operaciones_mvtos`.`tipo_operacion` = 410 AND `operaciones_mvtos`.`periodo_socio`= (`creditos_solicitud`.`ultimo_periodo_afectado`+1)),  MMC.`cargos_cbza`,0) AS `gastos_de_cobranza`
+
+FROM
 	`operaciones_mvtos` `operaciones_mvtos` 
 		INNER JOIN `creditos_solicitud` `creditos_solicitud` 
 		ON `operaciones_mvtos`.`docto_afectado` = `creditos_solicitud`.
@@ -1543,7 +1593,8 @@ FROM
 			`eacp_config_bases_de_integracion_miembros` 
 			ON `operaciones_mvtos`.`tipo_operacion` = 
 			`eacp_config_bases_de_integracion_miembros`.`miembro`
-			
+INNER JOIN ( SELECT getTasaIVAGeneral() AS `tasa_iva`, getDivisorDeInteres() AS `divisor_interes`,getFechaDeCorte() AS  `fecha_corte`) PRM
+INNER JOIN (SELECT   `clave_de_credito`,`cargos_cbza` FROM `creditos_montos`) MMC ON MMC.`clave_de_credito` = `creditos_solicitud`.`numero_solicitud`
      
 WHERE (`eacp_config_bases_de_integracion_miembros`.`codigo_de_base` = 2601)
 AND `operaciones_mvtos`.`tipo_operacion` != 420 
@@ -1679,7 +1730,7 @@ CREATE
 
 -- Cambiar fecha
 
-SET @fecha_de_corte = DATE_ADD(NOW(), INTERVAL 12 HOUR);
+SET @fecha_de_corte = DATE_ADD(NOW(), INTERVAL 10 HOUR);
 
 CREATE TABLE `creditos_letras_del_dia` AS  
 (
@@ -1700,7 +1751,7 @@ SELECT
 		ROUND((`creditos_solicitud`.`tasa_moratorio`*100),2) AS `tasa_de_mora`,
 		ROUND((`creditos_solicitud`.`tasa_interes`*100),2)   AS `tasa_de_interes` ,
 
-		DATEDIFF(getFechaDeCorte(), fecha_de_pago) AS `dias`,
+		DATEDIFF(PRM.`fecha_corte`, `letras`.`fecha_de_pago`) AS `dias`,
 		`letras`.`interes_moratorio` AS `mora`,
 		`letras`.`interes_moratorio` AS  `interes_moratorio`,
 		`letras`.`iva_moratorio` AS `iva_moratorio`
@@ -1712,7 +1763,7 @@ FROM
 			INNER JOIN `creditos_tipo_de_pago` `creditos_tipo_de_pago` 
 			ON `creditos_solicitud`.`tipo_de_pago` = `creditos_tipo_de_pago`.
 			`idcreditos_tipo_de_pago`
-		
+INNER JOIN ( SELECT getTasaIVAGeneral() AS `tasa_iva`, getDivisorDeInteres() AS `divisor_interes`,getFechaDeCorte() AS  `fecha_corte`) PRM
 		WHERE IF((`creditos_tipo_de_pago`.`con_capital`=1 AND `letras`.`capital` <=0), 0, 1) >0 AND `fecha_de_pago` <= getFechaDeCorte() AND `creditos_solicitud`.`saldo_actual`>0
 
 ) ;
@@ -4412,6 +4463,77 @@ BEGIN
 	CLOSE cur1;
 
 END$$
+
+
+-- --------------------------------
+-- - Funcion devuelve los gastos de cobranza por mes, echale financiamiento
+-- - Febrero/2020
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getMtoGtosCbzaMes`$$
+
+CREATE FUNCTION `getMtoGtosCbzaMes`(FechaVcto DATE) RETURNS DOUBLE(12,2)
+BEGIN
+	DECLARE NumMeses INT(4) DEFAULT 0;
+	DECLARE MtoGtos DOUBLE(12,2) DEFAULT 0;
+	SET NumMeses = ( SELECT TIMESTAMPDIFF(MONTH, FechaVcto, CURDATE()) );
+	
+	 
+	IF ISNULL(NumMeses) THEN
+		SET NumMeses = 0;
+	END IF;
+	
+	SET MtoGtos = 300 * NumMeses;
+	
+	RETURN MtoGtos;
+    END$$
+
+DELIMITER ;
+
+
+
+
+-- --------------------------------
+-- - Funcion que setea permisos a objeto formulario
+-- - Agosto/2020
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `setDenegarFormObj`$$
+
+CREATE FUNCTION `setDenegarFormObj`(objFrm VARCHAR(40), obj VARCHAR(40), denegarTodos BOOLEAN ) RETURNS BOOLEAN
+BEGIN
+	DECLARE ClaveObj VARCHAR(25) DEFAULT '';
+	DECLARE Existen INT DEFAULT 0;
+	DECLARE Permisos VARCHAR(200) DEFAULT '2@rw,3@rw,4@rw,5@rw,6@rw,7@rw,8@rw,9@rw,10@rw,11@rw,12@rw,13@rw,14@rw,15@rw,31@rw,41@rw,71@rw,72@rw,73@rw,81@rw,99@rw';
+	SET ClaveObj	= (SELECT CONCAT(CRC32(objFrm),'-f-',CRC32(obj)) );
+	SET Existen 	= (SELECT COUNT(*) FROM `sistema_permisos` WHERE `accion`=ClaveObj);
+	
+	
+	IF Existen>0 THEN
+		IF denegarTodos = TRUE THEN
+			UPDATE `sistema_permisos` SET `denegado`= Permisos WHERE `accion`=ClaveObj;
+		END IF;
+	ELSE
+		IF denegarTodos = TRUE THEN
+			INSERT INTO `sistema_permisos`(`idsistema_permisos`,`accion`,`denegado`,`descripcion`,`tipo_objeto`,`nombre_objeto`,`estatus`)
+			VALUES (NULL,ClaveObj,Permisos,obj,'FORM',objFrm,1);
+
+		ELSE
+			INSERT INTO `sistema_permisos`(`idsistema_permisos`,`accion`,`denegado`,`descripcion`,`tipo_objeto`,`nombre_objeto`,`estatus`)
+			VALUES (NULL,ClaveObj,'',obj,'FORM',objFrm,1);
+		END IF;
+	END IF;
+	
+	
+	RETURN TRUE;
+    END$$
+
+DELIMITER ;
+
 
 
 
