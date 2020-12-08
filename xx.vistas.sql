@@ -1032,7 +1032,7 @@ IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_a
 
 
 IF(SUM(IF((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413),0, `operaciones_mvtos`.`afectacion_real`))<=0,0,
-SUM(
+MAX(
 IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),
 (DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`))
 , 0 ))
