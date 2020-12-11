@@ -87,7 +87,7 @@ DELIMITER $$
 DROP VIEW IF EXISTS `solicitudes`$$
 DROP TABLE IF EXISTS `solicitudes`$$
 
-CREATE VIEW `solicitudes` AS select SQL_CACHE `creditos_solicitud`.`numero_socio` AS `numero_socio`,`creditos_solicitud`.`numero_solicitud` AS `solicitud`,`creditos_modalidades`.`descripcion_modalidades` AS `modalidad`,`creditos_tipoconvenio`.`descripcion_tipoconvenio` AS `convenio`,`creditos_solicitud`.`fecha_solicitud` AS `fecha_solicitud`,`creditos_solicitud`.`monto_solicitado` AS `monto_solicitado`,format((`creditos_solicitud`.`dias_autorizados` / 30.41666666),0) AS `plazo`,`creditos_solicitud`.`fecha_vencimiento` AS `fecha_vencimiento`,`creditos_solicitud`.`saldo_actual` AS `saldo_actual`,`creditos_solicitud`.`saldo_vencido` AS `saldo_vencido`,`creditos_solicitud`.`interes_diario` AS `interes_diario`,`creditos_periocidadpagos`.`descripcion_periocidadpagos` AS `periocidad` from (((`creditos_solicitud` join `creditos_modalidades`) join `creditos_tipoconvenio`) join `creditos_periocidadpagos`) where ((`creditos_modalidades`.`idcreditos_modalidades` = `creditos_solicitud`.`tipo_credito`) and (`creditos_tipoconvenio`.`idcreditos_tipoconvenio` = `creditos_solicitud`.`tipo_convenio`) and (`creditos_periocidadpagos`.`idcreditos_periocidadpagos` = `creditos_solicitud`.`periocidad_de_pago`))$$
+CREATE VIEW `solicitudes` AS select `creditos_solicitud`.`numero_socio` AS `numero_socio`,`creditos_solicitud`.`numero_solicitud` AS `solicitud`,`creditos_modalidades`.`descripcion_modalidades` AS `modalidad`,`creditos_tipoconvenio`.`descripcion_tipoconvenio` AS `convenio`,`creditos_solicitud`.`fecha_solicitud` AS `fecha_solicitud`,`creditos_solicitud`.`monto_solicitado` AS `monto_solicitado`,format((`creditos_solicitud`.`dias_autorizados` / 30.41666666),0) AS `plazo`,`creditos_solicitud`.`fecha_vencimiento` AS `fecha_vencimiento`,`creditos_solicitud`.`saldo_actual` AS `saldo_actual`,`creditos_solicitud`.`saldo_vencido` AS `saldo_vencido`,`creditos_solicitud`.`interes_diario` AS `interes_diario`,`creditos_periocidadpagos`.`descripcion_periocidadpagos` AS `periocidad` from (((`creditos_solicitud` join `creditos_modalidades`) join `creditos_tipoconvenio`) join `creditos_periocidadpagos`) where ((`creditos_modalidades`.`idcreditos_modalidades` = `creditos_solicitud`.`tipo_credito`) and (`creditos_tipoconvenio`.`idcreditos_tipoconvenio` = `creditos_solicitud`.`tipo_convenio`) and (`creditos_periocidadpagos`.`idcreditos_periocidadpagos` = `creditos_solicitud`.`periocidad_de_pago`))$$
 
 DELIMITER ;
 
@@ -97,7 +97,7 @@ DELIMITER $$
 DROP VIEW IF EXISTS `socios`$$
 DROP TABLE IF EXISTS `socios`$$
 
-CREATE VIEW `socios` AS (select SQL_CACHE `socios_general`.`codigo` AS `codigo`,
+CREATE VIEW `socios` AS (select `socios_general`.`codigo` AS `codigo`,
 TRIM(CONCAT(`socios_general`.`nombrecompleto`,_utf8' ',`socios_general`.`apellidopaterno`,_utf8' ',`socios_general`.`apellidomaterno`)) AS `nombre`,
 `socios_general`.`cajalocal` AS `numero_caja_local`, `socios_general`.`dependencia` 
 AS `iddependencia`,
@@ -665,7 +665,7 @@ DELIMITER $$
 DROP VIEW IF EXISTS `creditos_parcialidades`$$
 DROP TABLE IF EXISTS `creditos_parcialidades`$$
 
-CREATE VIEW `creditos_parcialidades` AS (select sql_cache `operaciones_mvtos`.`socio_afectado` AS `socio`,
+CREATE VIEW `creditos_parcialidades` AS (select  `operaciones_mvtos`.`socio_afectado` AS `socio`,
 `operaciones_mvtos`.`docto_afectado` AS `credito`,`operaciones_mvtos`.`periodo_socio` AS `parcialidad`,
 max(`operaciones_mvtos`.`fecha_afectacion`) AS `fecha_de_pago`,
 sum((`operaciones_mvtos`.`afectacion_real` * `eacp_config_bases_de_integracion_miembros`.`afectacion`)) AS `monto` 
@@ -802,7 +802,7 @@ DROP VIEW IF EXISTS `creditos_mvtos_asdpm`$$
 DROP TABLE IF EXISTS `creditos_mvtos_asdpm`$$
  
 CREATE VIEW `creditos_mvtos_asdpm` AS (
-SELECT SQL_CACHE
+SELECT 
   `eacp_config_bases_de_integracion_miembros`.`codigo_de_base` AS `codigo_de_base`,
   `operaciones_mvtos`.`socio_afectado`                         AS `socio`,
   `operaciones_mvtos`.`docto_afectado`                         AS `documento`,
@@ -843,7 +843,7 @@ DROP VIEW IF EXISTS `creditos_mvtos_asdpm_planes`$$
 DROP TABLE IF EXISTS `creditos_mvtos_asdpm_planes`$$
  
 CREATE VIEW `creditos_mvtos_asdpm_planes` AS (
-SELECT SQL_CACHE
+SELECT 
 	2620	AS `codigo_de_base`,
 	`operaciones_mvtos`.`socio_afectado`                         	AS `socio`,
 	`operaciones_mvtos`.`docto_afectado`                         	AS `documento`,
@@ -892,7 +892,7 @@ DROP VIEW IF EXISTS `creditos_proximas_parcialidades`$$
 DROP TABLE IF EXISTS `creditos_proximas_parcialidades`$$
 
 CREATE VIEW `creditos_proximas_parcialidades` AS (
-SELECT SQL_CACHE
+SELECT 
   `operaciones_mvtos`.`socio_afectado`    AS `socio`,
   `creditos_solicitud`.`numero_solicitud` AS `credito`,
   `operaciones_mvtos`.`tipo_operacion`    AS `tipo_operacion`,
@@ -1525,7 +1525,7 @@ DROP VIEW IF EXISTS `aml_perfil_egresos_por_persona_rt`$$
 DROP TABLE IF EXISTS `aml_perfil_egresos_por_persona_rt`$$
 
 CREATE VIEW `aml_perfil_egresos_por_persona_rt` AS (
-SELECT SQL_CACHE
+SELECT 
   `eacp_config_bases_de_integracion_miembros`.`codigo_de_base` AS `codigo_de_base`,
   `operaciones_recibos`.`numero_socio`                         AS `socio_afectado`,
   DATE_FORMAT(`operaciones_recibos`.`fecha_operacion`,'%Y%m')  AS `periodo`,
@@ -1641,7 +1641,7 @@ DELIMITER $$
 DROP VIEW IF EXISTS `personas`$$
 DROP TABLE IF EXISTS `personas`$$
 
-CREATE VIEW `personas` AS (select SQL_CACHE `socios_general`.`codigo` AS `codigo`,
+CREATE VIEW `personas` AS (select  `socios_general`.`codigo` AS `codigo`,
 TRIM(CONCAT(`socios_general`.`nombrecompleto`,_utf8' ',`socios_general`.`apellidopaterno`,_utf8' ',`socios_general`.`apellidomaterno`)) AS `nombre`,
 `socios_general`.`cajalocal` AS `numero_caja_local`, `socios_general`.`dependencia` 
 AS `iddependencia`,
@@ -1673,7 +1673,7 @@ DELIMITER $$
 DROP VIEW IF EXISTS `personas_en_presupuestos`$$
 DROP TABLE IF EXISTS `personas_en_presupuestos`$$
 
-CREATE VIEW `personas_en_presupuestos` AS (select SQL_CACHE `socios_general`.`codigo` AS `codigo`,
+CREATE VIEW `personas_en_presupuestos` AS (select  `socios_general`.`codigo` AS `codigo`,
 TRIM(CONCAT(`socios_general`.`nombrecompleto`,_utf8' ',`socios_general`.`apellidopaterno`,_utf8' ',`socios_general`.`apellidomaterno`)) AS `nombre`,
 `socios_general`.`cajalocal` AS `numero_caja_local`, `socios_general`.`dependencia` 
 AS `iddependencia`,
@@ -1843,7 +1843,7 @@ DROP TABLE IF EXISTS `vw_creditos_pagos_acumulados`$$
 
 CREATE VIEW `vw_creditos_pagos_acumulados` AS (
 
-SELECT SQL_CACHE
+SELECT 
   `eacp_config_bases_de_integracion_miembros`.`codigo_de_base` AS `codigo_de_base`,
   `operaciones_mvtos`.`socio_afectado`                         AS `socio_afectado`,
   `operaciones_mvtos`.`docto_afectado`                         AS `docto_afectado`,
@@ -1949,9 +1949,7 @@ DROP VIEW IF EXISTS `vw_creditos_letras_actuales`$$
 DROP TABLE IF EXISTS `vw_creditos_letras_actuales`$$
 
 CREATE VIEW `vw_creditos_letras_actuales` AS (
-SELECT SQL_CACHE
-
-
+SELECT
 `operaciones_mvtos`.`docto_afectado`                         AS `credito`,
 MIN(`operaciones_mvtos`.`periodo_socio`)                     AS `parcialidad`
 
@@ -1981,7 +1979,7 @@ DROP VIEW IF EXISTS `vw_cuotas_pagadas_por_mes`$$
 DROP TABLE IF EXISTS `vw_cuotas_pagadas_por_mes`$$
 
 CREATE VIEW `vw_cuotas_pagadas_por_mes` AS (
-SELECT SQL_CACHE
+SELECT 
 
 
 
