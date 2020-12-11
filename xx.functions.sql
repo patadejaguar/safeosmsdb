@@ -2160,7 +2160,11 @@ DROP PROCEDURE IF EXISTS `sp_correcciones`$$
 CREATE  PROCEDURE `sp_correcciones`()
 BEGIN
 
-UPDATE `creditos_solicitud`, `creditos_letras_pendientes_rt` SET `creditos_solicitud`.`fecha_de_proximo_pago`=`creditos_letras_pendientes_rt`.`fecha_de_pago` WHERE `creditos_solicitud`.`numero_solicitud`=`creditos_letras_pendientes_rt`.`docto_afectado`;
+UPDATE `creditos_solicitud` AS CS INNER JOIN
+(
+SELECT MIN(`fecha_de_pago`) AS `fecha_de_pago_rt` ,`credito` AS `credito` FROM `creditos_letras_pendientes_rt` WHERE `letra`>0  GROUP BY `credito` ORDER BY `periodo_socio`
+) AS CLP ON CLP.`credito`= CS.`numero_solicitud`
+SET `fecha_de_proximo_pago`=CLP.`fecha_de_pago_rt`;
 
 UPDATE `creditos_solicitud` SET `fecha_de_proximo_pago`=DATE_ADD(`fecha_ultimo_mvto`, INTERVAL `periocidad_de_pago` DAY) WHERE  `fecha_de_proximo_pago`='0000-00-00' AND `periocidad_de_pago` != 360;
 UPDATE `creditos_solicitud` SET `fecha_de_proximo_pago`=`fecha_vencimiento` WHERE  `fecha_de_proximo_pago`='0000-00-00' AND `periocidad_de_pago` = 360;
