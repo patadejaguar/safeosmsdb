@@ -4540,4 +4540,70 @@ DELIMITER ;
 
 
 
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `sp_fix_pago_planes`$$
+CREATE  PROCEDURE `sp_fix_pago_planes`()
+BEGIN
+
+DECLARE mFechaOperacion 	DATE DEFAULT CURDATE();
+DECLARE mToleranciaPagos 	DOUBLE(6,2) DEFAULT 2;
+DECLARE mCreditoId		BIGINT(20) DEFAULT 0;
+DECLARE mClave			BIGINT(20) DEFAULT 0;
+DECLARE mCapital	 	DOUBLE(18,2) DEFAULT 0;
+DECLARE mFechaPago	 	DATE DEFAULT CURDATE();
+DECLARE mPeriodo		INT(4) DEFAULT 0;
+
+DECLARE mMontoPagado 	DOUBLE(18,2) DEFAULT 0;
+DECLARE mMontoObligado 	DOUBLE(18,2) DEFAULT 0;
+DECLARE mDiferencia	DOUBLE(18,2) DEFAULT 0;
+
+DECLARE done INT DEFAULT FALSE;
+
+DECLARE cur1 CURSOR FOR SELECT `plan_de_pago`, `clave_de_credito`, `capital`,`fecha_de_pago`,`numero_de_parcialidad`
+FROM `creditos_plan_de_pagos` 
+WHERE `fecha_de_pago`<=mFechaOperacion AND (`capital`-`pag_cap`)>= mToleranciaPagos;
+
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+
+-- DROP TABLE IF EXISTS `tmp_personas_estadisticas`;
+
+
+
+OPEN cur1;
+
+read_loop: LOOP
+    FETCH cur1 INTO mClave,mCreditoId,mCapital,mFechaPago,mPeriodo;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+
+	
+	SET mMontoPagado = (SELECT SUM(`afectacion_real`) AS `capital_pagado` FROM `operaciones_mvtos` 
+	WHERE `tipo_operacion`=120 AND `fecha_operacion`<=mFechaOperacion AND `docto_afectado`=mCreditoId GROUP BY `docto_afectado`);
+	SET mMontoObligado = (SELECT SUM(`capital`) AS `capital_obligado` FROM `creditos_plan_de_pagos` 
+		WHERE `clave_de_credito`=mCreditoId AND `numero_de_parcialidad`<=mPeriodo AND `estatusactivo`=1 GROUP BY `clave_de_credito`);
+	IF mMontoPagado >= mMontoObligado THEN
+		UPDATE `creditos_plan_de_pagos` SET `pag_cap`=`capital` WHERE `plan_de_pago`=mClave;
+	ELSE 
+		SET mDiferencia = (mMontoPagado - mMontoObligado);
+		IF mDiferencia > 0 THEN
+			UPDATE `creditos_plan_de_pagos` SET `pag_cap`=mDiferencia WHERE `plan_de_pago`=mClave;
+		ELSE
+			UPDATE `creditos_plan_de_pagos` SET `pag_cap`=0 WHERE `plan_de_pago`=mClave;
+		END IF;
+	END IF;
+  END LOOP;
+
+  CLOSE cur1;
+  
+
+
+
+
+END$$
+
+
+DELIMITER ;
 

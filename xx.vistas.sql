@@ -852,10 +852,11 @@ SELECT
 	`operaciones_mvtos`.`tipo_operacion`                         	AS `operacion`,
 	`operaciones_mvtos`.`afectacion_real`                        	AS `monto`,
 	BS.`afectacion` 	AS `afectacion`,
-	`operaciones_mvtos`.`periodo_socio`                        	AS `periodo`,
-	`creditos_solicitud`.`periocidad_de_pago`			AS `credito_periocidad`,
-	`creditos_solicitud`.`tipo_de_pago`       			AS `credito_tipo_de_pago`,
-	`creditos_solicitud`.`saldo_actual`       			AS `saldo_actual`
+	`operaciones_mvtos`.`periodo_socio`                        		AS `periodo`,
+	`creditos_solicitud`.`periocidad_de_pago`						AS `credito_periocidad`,
+	`creditos_solicitud`.`tipo_de_pago`       						AS `credito_tipo_de_pago`,
+	`creditos_solicitud`.`saldo_actual`       						AS `saldo_actual`,
+	`creditos_solicitud`.`fecha_ultimo_mvto`						AS `fecha_ultimo_mvto`
 FROM
  
         `operaciones_mvtos` `operaciones_mvtos`
