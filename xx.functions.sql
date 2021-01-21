@@ -4607,3 +4607,109 @@ END$$
 
 DELIMITER ;
 
+-- - Devengar Intereses de Letras
+
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `sp_letras_dev_sdpm`$$
+CREATE  PROCEDURE `sp_letras_dev_sdpm`()
+BEGIN
+
+DECLARE mFechaOperacion 	DATE DEFAULT CURDATE();
+
+DECLARE mToleranciaPagos 	DOUBLE(6,2) DEFAULT 2;
+DECLARE mClave				BIGINT(20) DEFAULT 0;
+DECLARE mCreditoId			BIGINT(20) DEFAULT 0;
+DECLARE mPeriodo			INT(4) DEFAULT 0;
+DECLARE mCapital	 		DOUBLE(18,2) DEFAULT 0;
+DECLARE mCapitalPagado	 	DOUBLE(18,2) DEFAULT 0;
+DECLARE mCapitalExigible 	DOUBLE(18,2) DEFAULT 0;
+DECLARE mInteresExigible 	DOUBLE(18,2) DEFAULT 0;
+DECLARE mDiasAtraso			INT(4) DEFAULT 0;
+DECLARE mTasaNormal			DOUBLE(18,2) DEFAULT 0;
+DECLARE mTasaMora			DOUBLE(18,2) DEFAULT 0;
+DECLARE mSaldoCredito		DOUBLE(18,2) DEFAULT 0;
+DECLARE mDivisorInt			INT(4) DEFAULT 0;
+DECLARE mExistentes			INT(4) DEFAULT 0;
+
+DECLARE mIntNormal			DOUBLE(18,2) DEFAULT 0;
+DECLARE mIntMora			DOUBLE(18,2) DEFAULT 0;
+
+DECLARE done INT DEFAULT FALSE;
+
+DECLARE cur1 CURSOR FOR SELECT 
+CPP.`plan_de_pago` 		AS `clave`,
+CPP.`clave_de_credito` 	AS `credito`,
+CPP.`numero_de_parcialidad`, CPP.`capital`,
+IF(MVTO.`evaluador`>0, MVTO.`capital_pagado`,0) 							AS `capital_pagado`,
+IF(MVTO.`evaluador`>0, (CPP.`capital`-MVTO.`capital_pagado`),CPP.`capital`) AS `capital_exigible`,
+IF(MVTO.`evaluador`>0, (CPP.`interes`-MVTO.`interes_pagado`),CPP.`interes`) AS `interes_exigible`,	
+setNoMenorCero(IF(MVTO.`evaluador`>0,
+DATEDIFF(MVTO.`fecha_pagado`, CPP.`fecha_de_pago`),
+DATEDIFF(PRM.`fecha_corte`, CPP.`fecha_de_pago`)
+)) AS `dias_vencidos`,
+CS.`tasa_interes`, CS.`tasa_moratorio`,PRM.`divisor_interes`,CS.`saldo_actual`
+FROM
+`creditos_plan_de_pagos` CPP 
+INNER JOIN (SELECT mFechaOperacion AS `fecha_corte`,getDivisorDeInteres() AS `divisor_interes`) PRM
+INNER JOIN `creditos_solicitud` CS ON CS.`numero_solicitud`=CPP.`clave_de_credito`
+LEFT JOIN
+(SELECT 
+	`docto_afectado`,
+	`periodo_socio`,
+	SUM(IF(`tipo_operacion`=120,`afectacion_real`,0)) AS `capital_pagado`,
+	SUM(IF(`tipo_operacion`=140,`afectacion_real`,0)) AS `interes_pagado`,
+	MAX(`fecha_operacion`) AS `fecha_pagado`,
+	1 AS `evaluador`
+FROM 
+`operaciones_mvtos`
+INNER JOIN (SELECT mFechaOperacion AS `fecha_corte`) PRM
+WHERE 
+
+(`tipo_operacion`=140 OR `tipo_operacion`=120)
+
+AND `fecha_afectacion`<=PRM.`fecha_corte`
+
+GROUP BY 
+    `docto_afectado`,`periodo_socio`
+) MVTO ON MVTO.`docto_afectado` = CPP.`clave_de_credito` AND MVTO.`periodo_socio` = CPP.`numero_de_parcialidad`;
+
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+OPEN cur1;
+
+read_loop: LOOP
+    FETCH cur1 INTO mClave,mCreditoId,mPeriodo,mCapital,mCapitalPagado,mCapitalExigible,mInteresExigible,mDiasAtraso,mTasaNormal,mTasaMora,mDivisorInt,mSaldoCredito;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+
+	
+	SET mIntNormal		= (mTasaNormal * 1 * mCapitalExigible) / mDivisorInt;
+	IF mDiasAtraso >= 1 THEN
+		SET mIntMora	= (mTasaMora * 1 * mCapitalExigible) / mDivisorInt;
+	END IF;
+	SET mExistentes		= (SELECT COUNT(*) FROM `creditos_letras_sdpm` WHERE `fecha`=mFechaOperacion AND `credito` = mCreditoId AND `periodo`=mPeriodo);
+	-- - ELiminar el registro
+	-- - Inserta el Registro
+	IF mExistentes > 0 THEN
+		UPDATE `creditos_letras_sdpm` SET
+		`mora_devengado` = mIntMora,`normal_devengado` = mIntNormal,`saldo_letra` = mCapitalExigible,`dias_atraso` = mDiasAtraso
+		WHERE `credito` = mCredito AND `periodo` = mPeriodo AND `fecha` = mFechaOperacion;
+	ELSE
+		INSERT INTO `creditos_letras_sdpm` (`idcreditos_letras_sdpm`,`credito`,`periodo`,`fecha`,`mora_devengado`,`normal_devengado`,`saldo_letra`,`dias_atraso`)
+		VALUES (NULL, mCreditoId,mPeriodo,mFechaOperacion,mIntMora,mIntNormal,mCapitalExigible,mDiasAtraso);
+	END IF;
+
+  END LOOP;
+
+
+CLOSE cur1;
+  
+
+END$$
+
+DELIMITER ;
+
+
