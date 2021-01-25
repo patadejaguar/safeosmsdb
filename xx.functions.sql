@@ -4722,4 +4722,201 @@ DELIMITER ;
 -- - Enero/2020
 -- - --------------------------------
 
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `sp_dev_reporte_credito`$$
+CREATE  PROCEDURE `sp_dev_reporte_credito`()
+BEGIN
+
+DECLARE mFechaOperacion 	DATE DEFAULT CURDATE();
+
+INSERT INTO `creditos_reporte_general` (`sucursal`,`codigo`,`nombre`,`empresa`,`credito`,`producto`,`frecuencia`,`estado_actual`,`autorizacion`,`fecha_de_desembolso`,`forma_de_pagos`,`tasa_interes`,`tasa_moratorio`,`total_pagos`,
+`pago`,`ultimo_pago`,`monto_original`,`saldo_capital`,`oficial`,`monto_parcialidad`,`interes_pagado`,`mora_pagado`,`capital_pagado`,`financiador`,`interes_vencido_del_mes`,`capital_vigente`,`capital_vencido`,
+`interes_vencido`,`capital_del_mes`,`interes_del_mes`,`capital_pagado_del_mes`,`interes_pagado_del_mes`,`interes_moratorio`,`otros_exigible`,`dias_vencidos`)
+SELECT
+	`personas`.`sucursal` 							AS `sucursal`, 
+	`personas`.`codigo`,
+	`personas`.`nombre`,
+	`personas`.`iddependencia` 						AS `empresa`, 
+	`creditos_solicitud`.`numero_solicitud`                            	AS `credito`,
+	`creditos_solicitud`.`tipo_convenio` 					AS `producto`, 
+	`creditos_solicitud`.`periocidad_de_pago`           			AS `frecuencia`,
+	`creditos_solicitud`.`estatus_actual`					AS `estado_actual`,
+	`creditos_solicitud`.`tipo_autorizacion` 				AS `autorizacion`,
+	`creditos_solicitud`.`fecha_ministracion`     		    		AS `fecha_de_desembolso`,
+	`creditos_solicitud`.`tipo_de_pago`                              	AS `forma_de_pagos`,
+	ROUND((`creditos_solicitud`.`tasa_interes`*100),2)			AS `tasa_interes`,
+	ROUND((`creditos_solicitud`.`tasa_moratorio`*100),2)			AS `tasa_moratorio`,
+	`creditos_solicitud`.`pagos_autorizados`				AS `total_pagos`,	
+	OPS.`pago`								AS `pago`,
+	IF(OPS.`ultimo_pago` = NULL, NULL, OPS.`ultimo_pago`)   		AS `ultimo_pago`,
+	`creditos_solicitud`.`monto_autorizado`                            	AS `monto_original`,
+	(`creditos_solicitud`.`monto_autorizado` - OPS.`capital_pagado`) 	AS `saldo_capital`,
+	`creditos_solicitud`.`oficial_credito` 					AS `oficial`,
+	IF(`creditos_tipo_de_pago`.`con_capital`= 0, getMontoCuotaCred(`numero_solicitud`, (`ultimo_periodo_afectado`+1)),
+	`creditos_solicitud`.`monto_parcialidad`) 				AS `monto_parcialidad`,
+
+	OPS.`interes_pagado`,
+	OPS.`mora_pagado`,
+	OPS.`capital_pagado`,
+	CO.`persona` AS `financiador`,
+	
+	setNoMenorcero(SVC.`interes_del_mes` - SVC.`interes_pagado_del_mes`) 	AS `interes_vencido_del_mes`,
+	SVC.`capital_exigible` 							AS `capital_vigente`,	
+	SVC.`capital_vencido`,
+	SVC.`interes_vencido`,
+	SVC.`capital_del_mes`,
+	SVC.`interes_del_mes`,
+	SVC.`capital_pagado_del_mes`,
+	SVC.`interes_pagado_del_mes`,
+	SVC.`interes_moratorio`,
+
+	SVC.`otros_exigible`,
+
+	CAST(SVC.`vdias_vencidos` AS UNSIGNED) 					AS `dias_vencidos`
+
+FROM
+	`creditos_solicitud` `creditos_solicitud` 
+		INNER JOIN `oficiales` `oficiales` 
+		ON `creditos_solicitud`.`oficial_seguimiento` = `oficiales`.`id` 
+			INNER JOIN `creditos_tipoconvenio` `creditos_tipoconvenio` 
+			ON `creditos_solicitud`.`tipo_convenio` = `creditos_tipoconvenio`.
+			`idcreditos_tipoconvenio` 
+				INNER JOIN `creditos_tipo_de_autorizacion` 
+				`creditos_tipo_de_autorizacion` 
+				ON `creditos_solicitud`.`tipo_autorizacion` = 
+				`creditos_tipo_de_autorizacion`.
+				`idcreditos_tipo_de_autorizacion` 
+					INNER JOIN `personas` `personas` 
+					ON `creditos_solicitud`.`numero_socio` = `personas`.`codigo` 
+						INNER JOIN `creditos_estatus` `creditos_estatus` 
+						ON `creditos_solicitud`.`estatus_actual` = 
+						`creditos_estatus`.`idcreditos_estatus` 
+							INNER JOIN `creditos_tipo_de_pago` 
+							`creditos_tipo_de_pago` 
+							ON `creditos_solicitud`.`tipo_de_pago` = 
+							`creditos_tipo_de_pago`.`idcreditos_tipo_de_pago` 
+								INNER JOIN `creditos_periocidadpagos` 
+								`creditos_periocidadpagos` 
+								ON `creditos_solicitud`.`periocidad_de_pago` = 
+								`creditos_periocidadpagos`.
+								`idcreditos_periocidadpagos`
+		LEFT JOIN `creditos_montos` `creditos_montos`
+		ON `creditos_montos`.`clave_de_credito` = `creditos_solicitud`.`numero_solicitud`
+		LEFT JOIN 
+(SELECT DISTINCT  `creditos_datos_originacion`.`credito` AS `originacion_credito`,`personas_financiadores`.`alias` AS `originacion_financiador`,`personas_financiadores`.`persona` 
+FROM  `creditos_datos_originacion` INNER JOIN `personas_financiadores`  ON `creditos_datos_originacion`.`persona_titular` = `personas_financiadores`.`persona` ) CO
+ON CO.`originacion_credito` = `creditos_solicitud`.`numero_solicitud`
+LEFT JOIN 
+(SELECT  `docto_afectado` AS `credito_id`,
+MAX( IF(`operaciones_mvtos`.`tipo_operacion` = 120 OR `operaciones_mvtos`.`tipo_operacion` = 140,`operaciones_mvtos`.`fecha_afectacion`, NULL) )  AS `ultimo_pago`,
+MAX( IF(`operaciones_mvtos`.`tipo_operacion` = 120 OR `operaciones_mvtos`.`tipo_operacion` = 140,`operaciones_mvtos`.`periodo_socio`, 0) )  AS `pago`,
+SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 120,`operaciones_mvtos`.`afectacion_real`,0)) AS `capital_pagado`,
+SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 140,`operaciones_mvtos`.`afectacion_real`,0)) AS `interes_pagado`,
+SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 141,`operaciones_mvtos`.`afectacion_real`,0)) AS `mora_pagado`
+FROM `operaciones_mvtos` 
+WHERE `operaciones_mvtos`.`fecha_operacion` <=mFechaOperacion
+GROUP BY `docto_afectado`) OPS ON OPS.`credito_id` = `creditos_solicitud`.`numero_solicitud`
+
+LEFT JOIN (SELECT CS.`numero_solicitud` AS `vclave_de_credito`,
+SUM(CPP.`capital_exigible`) AS `capital_exigible`,
+SUM(CPP.`interes_exigible`) AS `interes_exigible`,
+SUM(CPP.`otros_exigible`) 	AS `otros_exigible`,
+
+SUM(IF(CPP.`dias_vencidos`> 0,CPP.`capital_exigible`,0)) AS `capital_vencido`,
+SUM(IF(CPP.`dias_vencidos`> 0,CPP.`interes_exigible`,0)) AS `interes_vencido`,
+SUM(IF(CPP.`dias_vencidos`> 0, 
+((CPP.`capital_exigible` * CS.`tasa_moratorio`*CPP.`dias_vencidos`) / PRM.`divisor_interes`)
+,0)) AS `interes_moratorio`,
+
+SUM(
+IF(CPP.`del_mes` = 1, CPP.`capital`, 0)
+) AS `capital_del_mes`,
+SUM(
+IF(CPP.`del_mes` = 1, CPP.`capital_pagado`, 0)
+) AS `capital_pagado_del_mes`,
+SUM(
+IF(CPP.`del_mes` = 1, CPP.`interes`, 0)
+) AS `interes_del_mes`,
+SUM(
+IF(CPP.`del_mes` = 1, CPP.`interes_pagado`, 0)
+) AS `interes_pagado_del_mes`,
+MAX(CPP.`dias_vencidos`) AS `vdias_vencidos`,
+IF(MAX(CPP.`dias_vencidos`)>0,'Vencido', 'Vigente') AS `vnombre_estatus_actual`
+
+FROM `creditos_solicitud` CS 
+INNER JOIN (SELECT getDivisorDeInteres() AS `divisor_interes`) PRM
+LEFT JOIN (
+SELECT 
+CPP.`plan_de_pago` 		AS `clave`,
+CPP.`clave_de_credito` 		AS `credito`,
+CPP.`numero_de_parcialidad`,
+CPP.`capital`,
+	CPP.`interes`,
+	CPP.`fecha_de_pago`,
+	MVTO.`capital_pagado`,
+	MVTO.`interes_pagado`,
+	MVTO.`fecha_pagado`,
+	PRM.`fecha_corte` AS `fecha_corte`,
+	IF(MVTO.`evaluador`>0, 1,0) AS `tiene_pago`,
+
+	IF(MVTO.`evaluador`>0, (CPP.`capital`-MVTO.`capital_pagado`),CPP.`capital`) AS `capital_exigible`,
+	IF(MVTO.`evaluador`>0, (CPP.`interes`-MVTO.`interes_pagado`),CPP.`interes`) AS `interes_exigible`,	
+
+	IF(LIN.`otros_pagado`>0, (CPP.`otros`-LIN.`otros_pagado`),CPP.`otros`) AS `otros_exigible`,
+
+	setNoMenorCero(IF(MVTO.`evaluador`>0,
+	DATEDIFF(MVTO.`fecha_pagado`, CPP.`fecha_de_pago`),
+	DATEDIFF(PRM.`fecha_corte`, CPP.`fecha_de_pago`)
+	)) AS `dias_vencidos`,
+	
+	IF(DATE_FORMAT(CPP.`fecha_de_pago`, '%Y') = DATE_FORMAT(PRM.`fecha_corte`, '%Y'), 1, 0) AS `del_mes`
+
+	
+FROM
+`creditos_plan_de_pagos` CPP 
+INNER JOIN (SELECT mFechaOperacion AS `fecha_corte`) PRM
+LEFT JOIN
+(SELECT 
+	`docto_afectado`,
+	`periodo_socio`,
+	SUM(IF(`tipo_operacion`=120,`afectacion_real`,0)) AS `capital_pagado`,
+	SUM(IF(`tipo_operacion`=140,`afectacion_real`,0)) AS `interes_pagado`,
+	MAX(`fecha_operacion`) AS `fecha_pagado`,
+	1 AS `evaluador`
+FROM 
+`operaciones_mvtos`
+INNER JOIN (SELECT mFechaOperacion AS `fecha_corte`) PRM
+WHERE 
+
+(`tipo_operacion`=140 OR `tipo_operacion`=120)
+
+AND `fecha_afectacion`<=PRM.`fecha_corte`
+
+GROUP BY 
+    `docto_afectado`,`periodo_socio`
+    
+) MVTO ON MVTO.`docto_afectado` = CPP.`clave_de_credito` AND MVTO.`periodo_socio` = CPP.`numero_de_parcialidad`
+
+LEFT JOIN (
+SELECT `credito`,`parcialidad`,SUM(`otros`) AS `otros_pagado` FROM `listado_de_ingresos` WHERE `fecha`<=mFechaOperacion
+GROUP BY `credito`,`parcialidad`
+) LIN ON LIN.`credito` = CPP.`clave_de_credito` AND LIN.`parcialidad` = CPP.`numero_de_parcialidad`
+
+) CPP ON CPP.credito = CS.numero_solicitud
+GROUP BY CS.numero_solicitud) SVC ON SVC.`vclave_de_credito` = `creditos_solicitud`.`numero_solicitud`
+	WHERE (creditos_solicitud.numero_solicitud != 0)
+	 AND ( creditos_solicitud.fecha_ministracion <= mFechaOperacion) 
+	
+	AND (`creditos_solicitud`.`estatus_actual`!=50)	
+	AND (creditos_solicitud.estatus_actual != 98) 
+	AND (creditos_solicitud.estatus_actual != 99)
+
+	HAVING saldo_capital != 0
+
+	ORDER BY `creditos_solicitud`.`tipo_convenio`, `personas`.`nombre` ;
+
+END$$
+
+DELIMITER ;
 
