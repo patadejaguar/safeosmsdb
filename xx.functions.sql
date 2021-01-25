@@ -4732,7 +4732,7 @@ DECLARE mFechaOperacion 	DATE DEFAULT CURDATE();
 
 INSERT INTO `creditos_reporte_general` (`sucursal`,`codigo`,`nombre`,`empresa`,`credito`,`producto`,`frecuencia`,`estado_actual`,`autorizacion`,`fecha_de_desembolso`,`forma_de_pagos`,`tasa_interes`,`tasa_moratorio`,`total_pagos`,
 `pago`,`ultimo_pago`,`monto_original`,`saldo_capital`,`oficial`,`monto_parcialidad`,`interes_pagado`,`mora_pagado`,`capital_pagado`,`financiador`,`interes_vencido_del_mes`,`capital_vigente`,`capital_vencido`,
-`interes_vencido`,`capital_del_mes`,`interes_del_mes`,`capital_pagado_del_mes`,`interes_pagado_del_mes`,`interes_moratorio`,`otros_exigible`,`dias_vencidos`)
+`interes_vencido`,`capital_del_mes`,`interes_del_mes`,`capital_pagado_del_mes`,`interes_pagado_del_mes`,`interes_moratorio`,`otros_exigible`,`dias_vencidos`,`fecha_reporte`)
 SELECT
 	`personas`.`sucursal` 							AS `sucursal`, 
 	`personas`.`codigo`,
@@ -4773,8 +4773,8 @@ SELECT
 
 	SVC.`otros_exigible`,
 
-	CAST(SVC.`vdias_vencidos` AS UNSIGNED) 					AS `dias_vencidos`
-
+	CAST(SVC.`vdias_vencidos` AS UNSIGNED) 					AS `dias_vencidos`,
+	mFechaOperacion											AS `fecha_reporte`
 FROM
 	`creditos_solicitud` `creditos_solicitud` 
 		INNER JOIN `oficiales` `oficiales` 
