@@ -4607,7 +4607,11 @@ END$$
 
 DELIMITER ;
 
+
+-- --------------------------------
 -- - Devengar Intereses de Letras
+-- - Enero/2020
+-- - --------------------------------
 
 
 DELIMITER $$
@@ -4711,5 +4715,11 @@ CLOSE cur1;
 END$$
 
 DELIMITER ;
+
+
+-- --------------------------------
+-- - Guardar Reporte de Credito Diario
+-- - Enero/2020
+-- - --------------------------------
 
 
