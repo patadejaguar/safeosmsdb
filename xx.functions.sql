@@ -4920,3 +4920,87 @@ END$$
 
 DELIMITER ;
 
+-- --------------------------------
+-- - Guardar Reporte de Letras Vencidas
+-- - Enero/2020
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `sp_dev_letras_vencidas`$$
+CREATE  PROCEDURE `sp_dev_letras_vencidas`()
+BEGIN
+
+DECLARE mFechaOperacion 	DATE DEFAULT CURDATE();
+
+INSERT INTO `creditos_reporte_letras_venc`(`persona`,`nombre`,`sucursal`,`credito`,`fecha_ministracion`,`pagos`,`periocidad`,`numero_con_atraso`,`fecha_de_atraso`,`dias`,
+`monto_ministrado`,`capital`,`interes`,`iva`,`otros`,`letra_original`,`moratorio`,`iva_moratorio`,`total`,`capital_vigente`,`total_vigente`,`gastos_de_cobranza`,`total_con_gastos`,
+`fecha_corte`)
+SELECT
+	`letras`.`persona`,
+	`personas`.`nombre`,
+	`personas`.`sucursal`,
+	`letras`.`credito`,
+
+	`creditos_solicitud`.`fecha_ministracion` 	AS `fecha_ministracion`,
+        
+	`creditos_solicitud`.`pagos_autorizados` 	AS `pagos`,
+        `creditos_solicitud`.`periocidad_de_pago` 	AS `periocidad`,
+	COUNT(`letras`.`parcialidad`)  	 		AS `numero_con_atraso`,
+	MIN(`letras`.`fecha_de_pago`) 			AS `fecha_de_atraso`,
+	MAX(`letras`.`dias`)          			AS `dias`,
+	
+	`creditos_solicitud`.`monto_autorizado` 	AS `monto_ministrado`,
+	
+	
+	SUM(`letras`.`capital`)       AS `capital`,
+	SUM(`letras`.`interes`)       AS `interes`,
+	SUM(`letras`.`iva`)           AS `iva`,
+	
+	
+	
+	SUM(`letras`.`otros`)         AS `otros`,
+	SUM(`letras`.`letra`)         AS `letra_original`,
+	
+	SUM(`letras`.`mora`)          AS `moratorio`,
+	SUM(`letras`.`iva_moratorio`) AS `iva_moratorio`,
+	
+	SUM(`capital`+`interes`+`iva`+`ahorro`+`otros`+`mora`+`iva_moratorio`) AS `total` 
+		,LV.capital_vigente, LV.total_vigente,
+	getMtoGtosCbzaMes(MIN(`letras`.`fecha_de_pago`)) AS `gastos_de_cobranza`,
+
+	(getMtoGtosCbzaMes(MIN(`letras`.`fecha_de_pago`)) + SUM(`capital`+`interes`+`iva`+`ahorro`+`otros`+`mora`+`iva_moratorio`)) AS `total_con_gastos`,
+	mFechaOperacion AS `fecha_corte`
+FROM
+	`letras` `letras` 
+		INNER JOIN `creditos_solicitud` `creditos_solicitud` 
+		ON `letras`.`credito` = `creditos_solicitud`.
+		`numero_solicitud` 
+			INNER JOIN `creditos_tipoconvenio` `creditos_tipoconvenio` 
+			ON `creditos_solicitud`.`tipo_convenio` = `creditos_tipoconvenio`.
+			`idcreditos_tipoconvenio` 
+				INNER JOIN `personas` `personas` 
+				ON `letras`.`persona` = `personas`.`codigo` 
+INNER JOIN `creditos_periocidadpagos` `creditos_periocidadpagos` ON `creditos_periocidadpagos`.`idcreditos_periocidadpagos` = `creditos_solicitud`.`periocidad_de_pago`
+		LEFT OUTER JOIN (
+		SELECT `letras`.`credito`,
+SUM(`capital`+`interes`+`iva`+`ahorro`+`otros`+`mora`+`iva_moratorio`) AS `total_vigente`,SUM(`capital`) AS `capital_vigente` FROM `letras`
+WHERE `letras`.`parcialidad` > 0 AND `letras`.`fecha_de_pago` > mFechaOperacion
+GROUP BY `letras`.`credito`
+		) LV ON LV.credito = `creditos_solicitud`.`numero_solicitud` 
+		WHERE `letras`.`parcialidad` > 0 AND `letras`.`fecha_de_pago` <= mFechaOperacion AND `letras`.`total_sin_otros`>0
+		AND `creditos_solicitud`.`estatus_actual`!= 50
+		
+		
+		 
+		 AND (creditos_solicitud.saldo_actual > 1)  AND (`creditos_tipoconvenio`.`omitir_seguimiento`=0) 
+		GROUP BY `letras`.`credito`
+
+HAVING total > 1
+	
+		ORDER BY MAX(`letras`.`dias`) DESC, `personas`.`nombre`;
+		
+
+END$$
+
+DELIMITER ;
