@@ -833,7 +833,7 @@ DROP PROCEDURE IF EXISTS `proc_historial_de_pagos`$$
 CREATE PROCEDURE `proc_historial_de_pagos`()
 BEGIN
 
-DROP VIEW IF EXISTS historial_de_pagos;
+-- DROP VIEW IF EXISTS historial_de_pagos;
 DROP TABLE IF EXISTS historial_de_pagos;
 
 CREATE TABLE historial_de_pagos AS  
@@ -1620,7 +1620,7 @@ CREATE
     PROCEDURE `proc_creditos_a_final_de_plazo`()
     BEGIN
 
-	DROP VIEW IF EXISTS `creditos_a_final_de_plazo`;
+--	DROP VIEW IF EXISTS `creditos_a_final_de_plazo`;
 	DROP TABLE IF EXISTS `creditos_a_final_de_plazo`;
 
 CREATE TABLE `creditos_a_final_de_plazo` AS  
@@ -2738,7 +2738,7 @@ DROP PROCEDURE IF EXISTS `proc_personas_domicilios`$$
 CREATE PROCEDURE `proc_personas_domicilios`()
 BEGIN
 
-DROP VIEW IF EXISTS `tmp_personas_domicilios`;
+-- DROP VIEW IF EXISTS `tmp_personas_domicilios`;
 DROP TABLE IF EXISTS `tmp_personas_domicilios`;
 
 CREATE TABLE `tmp_personas_domicilios` AS  
@@ -4695,13 +4695,14 @@ read_loop: LOOP
 		SET mIntMora	= (mTasaMora * 1 * mCapitalExigible) / mDivisorInt;
 	END IF;
 	SET mExistentes		= (SELECT COUNT(*) FROM `creditos_letras_sdpm` WHERE `fecha`=mFechaOperacion AND `credito` = mCreditoId AND `periodo`=mPeriodo);
-	-- - ELiminar el registro
-	-- - Inserta el Registro
+	
 	IF mExistentes > 0 THEN
+		-- - Actualizar el registro
 		UPDATE `creditos_letras_sdpm` SET
 		`mora_devengado` = mIntMora,`normal_devengado` = mIntNormal,`saldo_letra` = mCapitalExigible,`dias_atraso` = mDiasAtraso
-		WHERE `credito` = mCredito AND `periodo` = mPeriodo AND `fecha` = mFechaOperacion;
+		WHERE `credito` = mCreditoId AND `periodo` = mPeriodo AND `fecha` = mFechaOperacion;
 	ELSE
+		-- - Inserta el Registro
 		INSERT INTO `creditos_letras_sdpm` (`idcreditos_letras_sdpm`,`credito`,`periodo`,`fecha`,`mora_devengado`,`normal_devengado`,`saldo_letra`,`dias_atraso`)
 		VALUES (NULL, mCreditoId,mPeriodo,mFechaOperacion,mIntMora,mIntNormal,mCapitalExigible,mDiasAtraso);
 	END IF;
@@ -4729,6 +4730,8 @@ CREATE  PROCEDURE `sp_dev_reporte_credito`()
 BEGIN
 
 DECLARE mFechaOperacion 	DATE DEFAULT CURDATE();
+
+DELETE FROM `creditos_reporte_general` WHERE `fecha_reporte`= mFechaOperacion;
 
 INSERT INTO `creditos_reporte_general` (`sucursal`,`codigo`,`nombre`,`empresa`,`credito`,`producto`,`frecuencia`,`estado_actual`,`autorizacion`,`fecha_de_desembolso`,`forma_de_pagos`,`tasa_interes`,`tasa_moratorio`,`total_pagos`,
 `pago`,`ultimo_pago`,`monto_original`,`saldo_capital`,`oficial`,`monto_parcialidad`,`interes_pagado`,`mora_pagado`,`capital_pagado`,`financiador`,`interes_vencido_del_mes`,`capital_vigente`,`capital_vencido`,
@@ -4769,11 +4772,11 @@ SELECT
 	SVC.`interes_del_mes`,
 	SVC.`capital_pagado_del_mes`,
 	SVC.`interes_pagado_del_mes`,
-	SVC.`interes_moratorio`,
+	LP.`interes_moratorio`,
 
-	SVC.`otros_exigible`,
+	LP.`otros_exigible`,
 
-	CAST(SVC.`vdias_vencidos` AS UNSIGNED) 					AS `dias_vencidos`,
+	CAST(LP.`dias_vencidos` AS UNSIGNED) 					AS `dias_vencidos`,
 	mFechaOperacion											AS `fecha_reporte`
 FROM
 	`creditos_solicitud` `creditos_solicitud` 
@@ -4905,6 +4908,11 @@ GROUP BY `credito`,`parcialidad`
 
 ) CPP ON CPP.credito = CS.numero_solicitud
 GROUP BY CS.numero_solicitud) SVC ON SVC.`vclave_de_credito` = `creditos_solicitud`.`numero_solicitud`
+LEFT JOIN (
+SELECT LP.`credito`,SUM(LP.`interes_moratorio`) AS `interes_moratorio`,SUM(LP.`otros`) AS `otros_exigible`, MAX(IF(`capital_exigible`<=0,0,DATEDIFF(mFechaOperacion, LP.`fecha_de_pago`))
+) AS `dias_vencidos` FROM `letras` LP GROUP BY LP.`credito`
+) AS LP ON LP.`credito` = `creditos_solicitud`.`numero_solicitud`
+
 	WHERE (creditos_solicitud.numero_solicitud != 0)
 	 AND ( creditos_solicitud.fecha_ministracion <= mFechaOperacion) 
 	
@@ -4932,6 +4940,8 @@ CREATE  PROCEDURE `sp_dev_letras_vencidas`()
 BEGIN
 
 DECLARE mFechaOperacion 	DATE DEFAULT CURDATE();
+
+DELETE FROM `creditos_reporte_letras_venc` WHERE `fecha_corte`= mFechaOperacion;
 
 INSERT INTO `creditos_reporte_letras_venc`(`persona`,`nombre`,`sucursal`,`credito`,`fecha_ministracion`,`pagos`,`periocidad`,`numero_con_atraso`,`fecha_de_atraso`,`dias`,
 `monto_ministrado`,`capital`,`interes`,`iva`,`otros`,`letra_original`,`moratorio`,`iva_moratorio`,`total`,`capital_vigente`,`total_vigente`,`gastos_de_cobranza`,`total_con_gastos`,
