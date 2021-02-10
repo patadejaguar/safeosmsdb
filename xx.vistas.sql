@@ -1675,7 +1675,7 @@ DROP VIEW IF EXISTS `personas_en_presupuestos`$$
 DROP TABLE IF EXISTS `personas_en_presupuestos`$$
 
 CREATE VIEW `personas_en_presupuestos` AS (select  `socios_general`.`codigo` AS `codigo`,
-TRIM(CONCAT(`socios_general`.`nombrecompleto`,_utf8' ',`socios_general`.`apellidopaterno`,_utf8' ',`socios_general`.`apellidomaterno`)) AS `nombre`,
+TRIM(CONCAT(`socios_general`.`nombrecompleto`,' ',`socios_general`.`apellidopaterno`,' ',`socios_general`.`apellidomaterno`)) AS `nombre`,
 `socios_general`.`cajalocal` AS `numero_caja_local`, `socios_general`.`dependencia` 
 AS `iddependencia`,
 `socios_aeconomica_dependencias`.`descripcion_dependencia` AS `dependencia`,
