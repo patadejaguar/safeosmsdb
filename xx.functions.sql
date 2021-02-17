@@ -288,6 +288,8 @@ CREATE
 
 DELIMITER ;
 
+-- - Funcion que obtiene un nombre de usuario por Id
+
 DELIMITER $$
 
 DROP FUNCTION IF EXISTS `getUserByID`$$
@@ -296,6 +298,9 @@ CREATE FUNCTION `getUserByID`(UsrID VARCHAR(100) )
 	RETURNS VARCHAR(100)
     BEGIN
 	DECLARE NUser VARCHAR(100);
+	
+	SET UsrID = CONVERT(UsrID, UNSIGNED);
+	
 	SET NUser = (SELECT nombrecompleto FROM usuarios WHERE idusuarios = UsrID);
 	IF ISNULL(NUser) THEN
 		SET NUser = "_NO_REGISTRADO_";
