@@ -870,7 +870,7 @@ WHERE (
                 AND     (`creditos_solicitud`.`numero_solicitud` >1)
 		AND (`creditos_solicitud`.`estatus_actual` < 98)
 		-- and docto_afectado=200012405
-		AND `operaciones_mvtos`.`fecha_afectacion` != '0000-00-00'
+		-- AND `operaciones_mvtos`.`fecha_afectacion` != '0000-00-00'
        )
 ORDER BY `operaciones_mvtos`.`docto_afectado`, `operaciones_mvtos`.`fecha_afectacion`,`operaciones_mvtos`.`periodo_socio`
 
