@@ -299,6 +299,10 @@ CREATE FUNCTION `getUserByID`(UsrID VARCHAR(100) )
     BEGIN
 	DECLARE NUser VARCHAR(100);
 	
+	IF UsrID = 'USUARIO_DESCONOCIDO' THEN
+		SET UsrID =	'0';
+	END IF;
+	
 	SET UsrID = CONVERT(UsrID, UNSIGNED);
 	
 	SET NUser = (SELECT nombrecompleto FROM usuarios WHERE idusuarios = UsrID);
