@@ -820,7 +820,7 @@ FROM
 
 WHERE ((`eacp_config_bases_de_integracion_miembros`.`codigo_de_base` = 10001)
 	AND (`operaciones_recibostipo`.`mostrar_en_corte` <> '0')
-	AND (`operaciones_mvtos`.`fecha_operacion` >= CONCAT((getEjercicioDeTrabajo()-1),'-01-01') )
+	AND (`operaciones_mvtos`.`fecha_operacion` >= CONCAT((getEjercicioDeTrabajo()-3),'-01-01') )
 )
 ORDER BY `eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,`operaciones_mvtos`.`fecha_operacion`,`socios`.`iddependencia`,`socios`.`nombre` ;
 
