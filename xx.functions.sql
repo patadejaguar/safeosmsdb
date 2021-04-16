@@ -288,6 +288,8 @@ CREATE
 
 DELIMITER ;
 
+-- - Funcion que obtiene un nombre de usuario por Id
+
 DELIMITER $$
 
 DROP FUNCTION IF EXISTS `getUserByID`$$
@@ -296,6 +298,13 @@ CREATE FUNCTION `getUserByID`(UsrID VARCHAR(100) )
 	RETURNS VARCHAR(100)
     BEGIN
 	DECLARE NUser VARCHAR(100);
+	
+	IF UsrID = 'USUARIO_DESCONOCIDO' THEN
+		SET UsrID =	'0';
+	END IF;
+	
+	SET UsrID = CONVERT(UsrID, UNSIGNED);
+	
 	SET NUser = (SELECT nombrecompleto FROM usuarios WHERE idusuarios = UsrID);
 	IF ISNULL(NUser) THEN
 		SET NUser = "_NO_REGISTRADO_";
@@ -811,7 +820,7 @@ FROM
 
 WHERE ((`eacp_config_bases_de_integracion_miembros`.`codigo_de_base` = 10001)
 	AND (`operaciones_recibostipo`.`mostrar_en_corte` <> '0')
-	AND (`operaciones_mvtos`.`fecha_operacion` >= CONCAT((getEjercicioDeTrabajo()-1),'-01-01') )
+	AND (`operaciones_mvtos`.`fecha_operacion` >= CONCAT((getEjercicioDeTrabajo()-3),'-01-01') )
 )
 ORDER BY `eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,`operaciones_mvtos`.`fecha_operacion`,`socios`.`iddependencia`,`socios`.`nombre` ;
 
@@ -5014,3 +5023,52 @@ HAVING total > 1
 END$$
 
 DELIMITER ;
+
+
+
+
+-- --------------------------------
+-- - Funcion que crear un RFC Valido
+-- - Febrero/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `setCrearRFC`$$
+
+CREATE FUNCTION `setCrearRFC`(ApPaterno VARCHAR(80), ApMaterno VARCHAR(80), Nombre VARCHAR(80), FechaNac DATE) RETURNS VARCHAR(13)
+BEGIN
+	DECLARE PrimeraParte VARCHAR(4) DEFAULT '';
+	DECLARE SegundaParte VARCHAR(6) DEFAULT '';
+	
+	DECLARE A1 VARCHAR(1) DEFAULT '';
+	DECLARE A2 VARCHAR(1) DEFAULT '';
+	DECLARE A3 VARCHAR(1) DEFAULT '';
+	DECLARE A4 VARCHAR(1) DEFAULT '';
+
+	SET A1 = SUBSTR(TRIM(ApPaterno),1,1);	
+	SET A2 = SUBSTR(regex_replace("[^aeiou]","", TRIM(ApPaterno)),1,1);
+	SET A3 = SUBSTR(TRIM(ApMaterno),1,1);
+	SET A4 = SUBSTR(TRIM(Nombre),1,1);
+
+	SET PrimeraParte = UPPER(CONCAT(A1,A2,A3,A4));
+	SET SegundaParte = (SELECT DATE_FORMAT(FechaNac, "%y%m%d"));
+	
+	IF PrimeraParte IN ("BUEI", "BUEY", "CACA", "CACO", "CAGA", "CAGO", "CAKA",
+"CAKO", "COGE", "COJA", "KOGE", "KOJO", "KAKA", "KULO", "MAME",
+"MAMO", "MEAR", "MEAS", "MEON", "MION", "COJE", "COJI", "COJO",
+"CULO", "FETO", "GUEY", "JOTO", "KACA", "KACO", "KAGA", "KAGO",
+"MOCO", "MULA", "PEDA", "PEDO", "PENE", "PUTA", "PUTO", "QULO",
+"RATA", "RUIN") THEN
+	SET PrimeraParte = CONCAT(SUBSTR(PrimeraParte,1,1),'X',SUBSTR(PrimeraParte,3,2));
+	END IF;
+	
+
+				
+	RETURN CONCAT(PrimeraParte,SegundaParte);
+
+    END$$
+
+DELIMITER ;
+
+

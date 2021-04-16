@@ -109,7 +109,7 @@ AS `iddependencia`,
 `socios_general`.`grupo_solidario`  AS 'grupo',
 	`socios_general`.`correo_electronico`,
 	`socios_general`.`telefono_principal` AS `telefono` ,
-	`socios_general`.`sucursal` AS `sucursal`
+	`socios_general`.`sucursal` AS `sucursal`,TIMESTAMPDIFF(YEAR, `socios_general`.`fechanacimiento`, CURDATE()) AS `edad`
 FROM
 	`socios_general` `socios_general` 
 		INNER JOIN `socios_genero` `socios_genero` 
@@ -1642,7 +1642,7 @@ DELIMITER $$
 DROP VIEW IF EXISTS `personas`$$
 DROP TABLE IF EXISTS `personas`$$
 
-CREATE VIEW `personas` AS (select  `socios_general`.`codigo` AS `codigo`,
+CREATE VIEW `personas` AS (SELECT  `socios_general`.`codigo` AS `codigo`,
 TRIM(CONCAT(`socios_general`.`nombrecompleto`,_utf8' ',`socios_general`.`apellidopaterno`,_utf8' ',`socios_general`.`apellidomaterno`)) AS `nombre`,
 `socios_general`.`cajalocal` AS `numero_caja_local`, `socios_general`.`dependencia` 
 AS `iddependencia`,
@@ -1656,7 +1656,7 @@ AS `iddependencia`,
 	`socios_general`.`telefono_principal` AS `telefono`,
 
 	`socios_figura_juridica`.`descripcion_figura_juridica` AS `figura_juridica`,
-	`socios_general`.`sucursal` AS `sucursal`
+	`socios_general`.`sucursal` AS `sucursal`,TIMESTAMPDIFF(YEAR, `socios_general`.`fechanacimiento`, CURDATE()) AS `edad`
 
 FROM     `socios_general` 
 INNER JOIN `socios_aeconomica_dependencias`  ON `socios_general`.`dependencia` = `socios_aeconomica_dependencias`.`idsocios_aeconomica_dependencias` 
