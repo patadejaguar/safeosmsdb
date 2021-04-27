@@ -5112,3 +5112,75 @@ BEGIN
 
 DELIMITER ;
 
+-- --------------------------------
+-- - Procedimiento Sanear Tabla de Localidades
+-- - Abril/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `sanear_tlocalidades`$$
+
+CREATE PROCEDURE `sanear_tlocalidades`()
+
+BEGIN
+
+DECLARE done 				INT DEFAULT FALSE;
+DECLARE vEstado				VARCHAR(255) DEFAULT '';
+DECLARE vEstado2			VARCHAR(255) DEFAULT '';
+DECLARE vLocalidad			VARCHAR(255) DEFAULT '';
+DECLARE vIDLocalidad			INT DEFAULT 0;
+
+DECLARE cur1 CURSOR FOR SELECT `catalogos_localidades`.`clave_unica`,LOWER(`catalogos_localidades`.`nombre_de_la_localidad`) AS `nombre_localidad`, LOWER(`general_estados`.`clave_en_sic`) AS `nombre_estado` FROM     `general_estados` INNER JOIN `catalogos_localidades`  ON `general_estados`.`clave_numerica` = `catalogos_localidades`.`clave_de_estado`;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+
+
+
+
+UPDATE `catalogos_localidades` SET `nombre_de_la_localidad`=UC_FIRST(`nombre_de_la_localidad`);
+
+UPDATE `catalogos_localidades` SET `nombre_de_la_localidad`=REPLACE(`nombre_de_la_localidad`, "Municipio", "(Municipio)");
+
+UPDATE `catalogos_localidades` SET `nombre_de_la_localidad`=REPLACE(`nombre_de_la_localidad`, "Localidad", "(Localidad)");
+
+-- Limpiar estados de Localidad
+
+
+
+
+OPEN cur1;
+
+read_loop: LOOP
+    FETCH cur1 INTO vIDLocalidad, vLocalidad, vEstado;
+    
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+
+    SET vEstado2 = UC_FIRST(vEstado);
+    
+    IF INSTR(vLocalidad, CONCAT(" de ", vEstado)) > 0 THEN
+	UPDATE `catalogos_localidades` SET `nombre_de_la_localidad`=REPLACE(`nombre_de_la_localidad`, CONCAT(" De ", vEstado2), "") WHERE `clave_unica`=vIDLocalidad;
+    ELSE 
+	IF INSTR(vLocalidad, CONCAT(" ", vEstado)) > 0 THEN
+	    UPDATE `catalogos_localidades` SET `nombre_de_la_localidad`=REPLACE(`nombre_de_la_localidad`, CONCAT(" ", vEstado2), " ") WHERE `clave_unica`=vIDLocalidad;
+	END IF;    
+    
+    END IF;
+    
+
+
+  END LOOP;
+
+
+
+UPDATE `catalogos_localidades` SET `nombre_de_la_localidad`=TRIM(`nombre_de_la_localidad`);
+
+
+END$$
+
+DELIMITER ;
+
+
+
