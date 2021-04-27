@@ -2281,6 +2281,10 @@ UPDATE `socios_general` SET `yclasificacion`=1 WHERE `yclasificacion`=0;
 UPDATE `socios_general` SET `zclasificacion`=1 WHERE `zclasificacion`=0;
 
 
+UPDATE `socios_vivienda` SET `calle`=UC_FIRST(`calle`),`numero_exterior`=UC_FIRST(`numero_exterior`),`colonia` = UC_FIRST(`colonia`), `estado`=UC_FIRST(`estado`),`municipio`=UC_FIRST(`municipio`),`referencia`=UC_FIRST(`referencia`),`nombre_de_pais`=UC_FIRST(`nombre_de_pais`);
+
+UPDATE `general_estados` SET `nombre` = UC_FIRST(`nombre`);
+
 
 END$$
 
@@ -5176,6 +5180,8 @@ read_loop: LOOP
 
 
 UPDATE `catalogos_localidades` SET `nombre_de_la_localidad`=TRIM(`nombre_de_la_localidad`);
+
+UPDATE `socios_vivienda` SET `localidad` = (SELECT `nombre_de_la_localidad` FROM `catalogos_localidades` WHERE `clave_unica`=`socios_vivienda`.`clave_de_localidad`);
 
 
 END$$
