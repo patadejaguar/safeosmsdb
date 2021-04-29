@@ -2286,6 +2286,8 @@ UPDATE `socios_vivienda` SET `calle`=UC_FIRST(`calle`),`numero_exterior`=UC_FIRS
 UPDATE `general_estados` SET `nombre` = UC_FIRST(`nombre`);
 
 
+UPDATE `socios_aeconomica` SET `domicilio_ae`=UC_FIRST(`domicilio_ae`), `nombre_ae`=UC_FIRST(`nombre_ae`), `localidad_ae`=UC_FIRST(`localidad_ae`), `municipio_ae`=UC_FIRST(`municipio_ae`), `estado_ae`=UC_FIRST(`estado_ae`), `departamento_ae`=UC_FIRST(`departamento_ae`), `puesto`=UC_FIRST(`puesto`), `descripcion`=UC_FIRST(`descripcion`);
+
 END$$
 
 DELIMITER ;
