@@ -5191,4 +5191,38 @@ END$$
 DELIMITER ;
 
 
+-- --------------------------------
+-- - Funcion que setea principal si es verdadero a otros falso
+-- - Mayo/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+CREATE DEFINER = CURRENT_USER TRIGGER `socios_vivienda_BEFORE_UPDATE` BEFORE UPDATE ON `socios_vivienda` FOR EACH ROW
+BEGIN
+
+IF NEW.principal = '1' THEN
+	UPDATE `socios_vivienda` SET principal = '0' WHERE `socio_numero`=NEW.socio_numero;
+END IF;
+
+END$$
+
+
+DELIMITER ;
+
+
+DELIMITER $$
+
+CREATE DEFINER = CURRENT_USER TRIGGER `socios_vivienda_BEFORE_INSERT` BEFORE INSERT ON `socios_vivienda` FOR EACH ROW
+BEGIN
+
+IF NEW.principal = '1' THEN
+	UPDATE `socios_vivienda` SET principal = '0' WHERE `socio_numero`=NEW.socio_numero;
+END IF;
+
+END$$
+
+
+DELIMITER ;
+
 
