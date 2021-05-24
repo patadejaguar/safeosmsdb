@@ -5226,3 +5226,60 @@ END$$
 DELIMITER ;
 
 
+
+
+
+
+-- --------------------------------
+-- - Funcion que setea id municipio por id de persona
+-- - y actualiza en catalogo externo si no existe
+-- - Aplica para Echale
+-- - Mayo/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `setIdMunicipioByIDPersona`$$
+
+CREATE FUNCTION `setIdMunicipioByIDPersona`(IDPersona BIGINT(20)) RETURNS INT(8)
+BEGIN
+	DECLARE IDMunicipio INT DEFAULT 0;
+	DECLARE IDEstado INT DEFAULT 0;
+	
+	DECLARE IDRelacionado INT DEFAULT 0;
+	DECLARE IDRelCNT INT DEFAULT 0;
+	DECLARE NombreMun VARCHAR(100);
+	DECLARE IDRelUQ INT DEFAULT 0;
+	
+	SET IDMunicipio = (SELECT `clave_de_municipio` FROM `socios_vivienda` WHERE `socio_numero`=IDPersona ORDER BY `principal` DESC LIMIT 0,1);
+	SET IDEstado = (SELECT `clave_de_entidadfederativa` FROM `socios_vivienda` WHERE `socio_numero`=IDPersona ORDER BY `principal` DESC LIMIT 0,1);
+	
+	IF IDMunicipio IS NOT NULL THEN
+		-- Crear Llave Unica
+		SET IDRelUQ = CAST(CONCAT(IDEstado, RIGHT(CONCAT('000',IDMunicipio),3)) AS UNSIGNED);
+		-- Validar si existe en xcatalogo
+		SET IDRelCNT = (SELECT COUNT(*) FROM `personas_xclasificacion` WHERE `idpersonas_xclasificacion`=IDRelUQ);
+		IF ISNULL(IDRelCNT) OR IDRelCNT<=0 THEN
+			-- Insertar nuevo registro municipio
+			SET NombreMun = (SELECT `nombre_del_municipio` FROM `general_municipios` WHERE `clave_unica`=IDRelUQ LIMIT 0,1);
+			INSERT INTO `personas_xclasificacion`(`idpersonas_xclasificacion`,`descripcion_xclasificacion`) VALUES (IDRelUQ,NombreMun);
+		END IF;
+	END IF;
+
+	RETURN IDRelUQ;
+
+    END$$
+
+DELIMITER ;
+
+
+
+
+
+
+
+
+
+
+
+
