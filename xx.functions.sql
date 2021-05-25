@@ -755,7 +755,7 @@ FROM `bancos_operaciones`
 GROUP BY `bancos_operaciones`.`recibo_relacionado`;
 ALTER TABLE `tmp_recibos_datos_bancarios` ADD INDEX `indexm` (`recibo` ASC, `banco` ASC);
 
-DROP VIEW IF EXISTS `listado_de_ingresos`;
+-- DROP VIEW IF EXISTS `listado_de_ingresos`;
 DROP TABLE IF EXISTS `listado_de_ingresos`;
 
 CREATE TABLE `listado_de_ingresos` AS  
@@ -1507,7 +1507,7 @@ DROP PROCEDURE IF EXISTS `proc_creditos_letras_pendientes`$$
 CREATE PROCEDURE `proc_creditos_letras_pendientes`()
 BEGIN
 
-DROP VIEW IF EXISTS `creditos_letras_pendientes`;
+-- DROP VIEW IF EXISTS `creditos_letras_pendientes`;
 DROP TABLE IF EXISTS `creditos_letras_pendientes`;
 
 CREATE TABLE `creditos_letras_pendientes` AS  
@@ -1732,7 +1732,7 @@ CREATE
     PROCEDURE `proc_creditos_letras_del_dia`()
     BEGIN
 
-	DROP VIEW IF EXISTS `creditos_letras_del_dia`;
+-- 	DROP VIEW IF EXISTS `creditos_letras_del_dia`;
 	DROP TABLE IF EXISTS `creditos_letras_del_dia`;
 
 
@@ -2984,7 +2984,7 @@ DROP PROCEDURE IF EXISTS `proc_creds_prox_letras`$$
 CREATE PROCEDURE `proc_creds_prox_letras`()
 BEGIN
 
-DROP VIEW IF EXISTS `tmp_creds_prox_letras`;
+-- DROP VIEW IF EXISTS `tmp_creds_prox_letras`;
 DROP TABLE IF EXISTS `tmp_creds_prox_letras`;
 
 CREATE TABLE `tmp_creds_prox_letras` AS  
