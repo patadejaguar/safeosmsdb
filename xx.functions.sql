@@ -5198,11 +5198,17 @@ DELIMITER ;
 
 DELIMITER $$
 
+
+DROP TRIGGER IF EXISTS `socios_vivienda_BEFORE_UPDATE`$$
+
+
 CREATE DEFINER = CURRENT_USER TRIGGER `socios_vivienda_BEFORE_UPDATE` BEFORE UPDATE ON `socios_vivienda` FOR EACH ROW
 BEGIN
+IF OLD.principal != NEW.principal THEN
+	IF NEW.principal = '1' THEN
+		UPDATE `socios_vivienda` SET principal = '0' WHERE `socio_numero`=NEW.socio_numero;
+	END IF;
 
-IF NEW.principal = '1' THEN
-	UPDATE `socios_vivienda` SET principal = '0' WHERE `socio_numero`=NEW.socio_numero;
 END IF;
 
 END$$
