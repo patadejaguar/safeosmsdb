@@ -5290,7 +5290,6 @@ CREATE PROCEDURE `proc_rebuild_cta_sdos`()
 BEGIN
 
 DECLARE done 				INT DEFAULT FALSE;
-
 DECLARE vIDMvto				INT DEFAULT 0;
 DECLARE vIDCta				BIGINT(20) DEFAULT 0;
 DECLARE vIDCta2				BIGINT(20) DEFAULT 0;
@@ -5332,4 +5331,112 @@ read_loop: LOOP
 END$$
 
 DELIMITER ;
+
+
+
+-- --------------------------------
+-- - Procedimiento Crea Saldo por Operacion - Por Cuenta
+-- - Mayo/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `proc_rebuild_cta_sdos_id`$$
+
+CREATE PROCEDURE `proc_rebuild_cta_sdos_id`(IDCuenta BIGINT(20))
+
+BEGIN
+
+DECLARE done 				INT DEFAULT FALSE;
+DECLARE vIDMvto				INT DEFAULT 0;
+DECLARE vIDCta				BIGINT(20) DEFAULT 0;
+DECLARE vIDCta2				BIGINT(20) DEFAULT 0;
+DECLARE vMonto				DOUBLE(12,2) DEFAULT 0;
+DECLARE vSdo				DOUBLE(12,2) DEFAULT 0;
+DECLARE vAfecta				INT DEFAULT 0;
+
+
+DECLARE cur1 CURSOR FOR SELECT `idcaptacion_cuentas_sdos`,`cuenta`,`afectacion_real`,`afectacion` FROM `captacion_cuentas_sdos` WHERE `cuenta`=IDCuenta ORDER BY `cuenta`,`fecha`,`recibo`;
+
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+
+
+OPEN cur1;
+
+read_loop: LOOP
+    FETCH cur1 INTO vIDMvto, vIDCta, vMonto, vAfecta;
+    
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+
+    IF vIDCta2 != vIDCta THEN
+	SET vSdo = 0;
+    END IF;
+    
+    SET vSdo = vSdo + (vMonto * vAfecta);
+
+    UPDATE `captacion_cuentas_sdos` SET `saldo_diario`=vSdo WHERE `idcaptacion_cuentas_sdos`=vIDMvto;
+
+
+    SET vIDCta2 = vIDCta;
+
+
+  END LOOP;
+
+
+END$$
+
+DELIMITER ;
+
+
+-- --------------------------------
+-- - Procedimiento Rebuild Sdo x Cred
+-- - Mayo/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `proc_rbd_cta_sdos_bycta`$$
+
+CREATE PROCEDURE `proc_rbd_cta_sdos_bycta`(IDCta BIGINT(20))
+BEGIN
+
+DELETE FROM `captacion_cuentas_sdos` WHERE `cuenta` = IDCta;
+
+INSERT INTO `captacion_cuentas_sdos`(`cuenta`,`fecha`,`recibo`,`afectacion_real`,`valor_afectacion`,`afectacion`)
+SELECT 
+									`operaciones_mvtos`.`docto_afectado` AS `cuenta`,
+									`operaciones_mvtos`.`fecha_operacion`  AS `fecha`,
+									`operaciones_mvtos`.`recibo_afectado` AS `recibo`,
+									
+									SUM((`operaciones_mvtos`.`afectacion_real` * BASES.`afectacion`)) AS `afectacion_real`,
+									1 AS `valor_afectacion`,
+									1 AS `afectacion`
+	FROM     `operaciones_mvtos` 
+	INNER JOIN `operaciones_tipos` ON `operaciones_tipos`.`idoperaciones_tipos` = `operaciones_mvtos`.`tipo_operacion` 
+	INNER JOIN (
+	SELECT   `eacp_config_bases_de_integracion_miembros`.`miembro`,
+			 `eacp_config_bases_de_integracion_miembros`.`afectacion`
+		FROM     `eacp_config_bases_de_integracion_miembros`
+		WHERE    ( `eacp_config_bases_de_integracion_miembros`.`codigo_de_base` = 3100 )
+	) BASES ON BASES.`miembro` = `operaciones_tipos`.`idoperaciones_tipos`
+WHERE `operaciones_mvtos`.`docto_afectado` = IDCta
+GROUP BY `operaciones_mvtos`.`recibo_afectado`					
+				ORDER BY
+					`operaciones_mvtos`.`docto_afectado`,
+					`operaciones_mvtos`.`fecha_afectacion`,
+					BASES.`afectacion` DESC;
+
+
+CALL proc_rebuild_cta_sdos_id(IDCta);
+
+
+END$$
+
+DELIMITER ;
+
+
+
 
