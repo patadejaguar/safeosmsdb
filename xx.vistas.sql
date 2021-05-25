@@ -2553,3 +2553,34 @@ WHERE `fecha_de_pago`<=NOW() AND `estatusactivo`=1
 
 DELIMITER ;
 
+
+-- - --------------------------------
+-- - Vista de Ultimos SDPM
+-- - Mayo/2020
+-- - --------------------------------
+
+	
+DELIMITER $$
+
+DROP VIEW IF EXISTS `vw_captacion_ult_sdpm`$$
+-- DROP TABLE IF EXISTS `vw_captacion_ult_sdpm`$$
+
+CREATE
+    VIEW `vw_captacion_ult_sdpm` 
+    AS
+
+SELECT `recibo`,`fecha`,`dias`,`monto`,`cuenta`, IF(`dias`>0,(`monto`/`dias`),0) AS `saldo`
+FROM `captacion_sdpm_historico` 
+INNER JOIN (
+SELECT `recibo` AS `rrecibo`,MAX(`fecha`) AS `ffecha` FROM `captacion_sdpm_historico` GROUP BY `recibo`
+) MSDPM ON MSDPM.`rrecibo` = `captacion_sdpm_historico`.`recibo`
+WHERE `numero_de_socio`=1004084
+AND MSDPM.`ffecha` = `captacion_sdpm_historico`.`fecha`
+
+
+;$$
+
+DELIMITER ;
+
+
+
