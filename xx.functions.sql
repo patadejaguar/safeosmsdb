@@ -5276,10 +5276,60 @@ DELIMITER ;
 
 
 
+-- --------------------------------
+-- - Procedimiento Crea Saldo por Operacion
+-- - Mayo/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `proc_rebuild_cta_sdos`$$
+
+CREATE PROCEDURE `proc_rebuild_cta_sdos`()
+
+BEGIN
+
+DECLARE done 				INT DEFAULT FALSE;
+
+DECLARE vIDMvto				INT DEFAULT 0;
+DECLARE vIDCta				BIGINT(20) DEFAULT 0;
+DECLARE vIDCta2				BIGINT(20) DEFAULT 0;
+DECLARE vMonto				DOUBLE(12,2) DEFAULT 0;
+DECLARE vSdo				DOUBLE(12,2) DEFAULT 0;
+DECLARE vAfecta				INT DEFAULT 0;
+
+
+DECLARE cur1 CURSOR FOR SELECT `idcaptacion_cuentas_sdos`,`cuenta`,`afectacion_real`,`afectacion` FROM `captacion_cuentas_sdos` ORDER BY `cuenta`,`fecha`,`recibo`;
+
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
 
 
 
+OPEN cur1;
+
+read_loop: LOOP
+    FETCH cur1 INTO vIDMvto, vIDCta, vMonto, vAfecta;
+    
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+
+    IF vIDCta2 != vIDCta THEN
+	SET vSdo = 0;
+    END IF;
+    
+    SET vSdo = vSdo + (vMonto * vAfecta);
+
+    UPDATE `captacion_cuentas_sdos` SET `saldo_diario`=vSdo WHERE `idcaptacion_cuentas_sdos`=vIDMvto;
 
 
+    SET vIDCta2 = vIDCta;
 
+
+  END LOOP;
+
+
+END$$
+
+DELIMITER ;
 
