@@ -755,7 +755,7 @@ FROM `bancos_operaciones`
 GROUP BY `bancos_operaciones`.`recibo_relacionado`;
 ALTER TABLE `tmp_recibos_datos_bancarios` ADD INDEX `indexm` (`recibo` ASC, `banco` ASC);
 
-DROP VIEW IF EXISTS `listado_de_ingresos`;
+-- DROP VIEW IF EXISTS `listado_de_ingresos`;
 DROP TABLE IF EXISTS `listado_de_ingresos`;
 
 CREATE TABLE `listado_de_ingresos` AS  
@@ -1507,7 +1507,7 @@ DROP PROCEDURE IF EXISTS `proc_creditos_letras_pendientes`$$
 CREATE PROCEDURE `proc_creditos_letras_pendientes`()
 BEGIN
 
-DROP VIEW IF EXISTS `creditos_letras_pendientes`;
+-- DROP VIEW IF EXISTS `creditos_letras_pendientes`;
 DROP TABLE IF EXISTS `creditos_letras_pendientes`;
 
 CREATE TABLE `creditos_letras_pendientes` AS  
@@ -1732,7 +1732,7 @@ CREATE
     PROCEDURE `proc_creditos_letras_del_dia`()
     BEGIN
 
-	DROP VIEW IF EXISTS `creditos_letras_del_dia`;
+-- 	DROP VIEW IF EXISTS `creditos_letras_del_dia`;
 	DROP TABLE IF EXISTS `creditos_letras_del_dia`;
 
 
@@ -2984,7 +2984,7 @@ DROP PROCEDURE IF EXISTS `proc_creds_prox_letras`$$
 CREATE PROCEDURE `proc_creds_prox_letras`()
 BEGIN
 
-DROP VIEW IF EXISTS `tmp_creds_prox_letras`;
+-- DROP VIEW IF EXISTS `tmp_creds_prox_letras`;
 DROP TABLE IF EXISTS `tmp_creds_prox_letras`;
 
 CREATE TABLE `tmp_creds_prox_letras` AS  
@@ -5189,6 +5189,254 @@ UPDATE `socios_vivienda` SET `localidad` = (SELECT `nombre_de_la_localidad` FROM
 END$$
 
 DELIMITER ;
+
+
+-- --------------------------------
+-- - Funcion que setea principal si es verdadero a otros falso
+-- - Mayo/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+CREATE DEFINER = CURRENT_USER TRIGGER `socios_vivienda_BEFORE_UPDATE` BEFORE UPDATE ON `socios_vivienda` FOR EACH ROW
+BEGIN
+
+IF NEW.principal = '1' THEN
+	UPDATE `socios_vivienda` SET principal = '0' WHERE `socio_numero`=NEW.socio_numero;
+END IF;
+
+END$$
+
+
+DELIMITER ;
+
+
+DELIMITER $$
+
+CREATE DEFINER = CURRENT_USER TRIGGER `socios_vivienda_BEFORE_INSERT` BEFORE INSERT ON `socios_vivienda` FOR EACH ROW
+BEGIN
+
+IF NEW.principal = '1' THEN
+	UPDATE `socios_vivienda` SET principal = '0' WHERE `socio_numero`=NEW.socio_numero;
+END IF;
+
+END$$
+
+
+DELIMITER ;
+
+
+
+
+
+
+-- --------------------------------
+-- - Funcion que setea id municipio por id de persona
+-- - y actualiza en catalogo externo si no existe
+-- - Aplica para Echale
+-- - Mayo/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `setIdMunicipioByIDPersona`$$
+
+CREATE FUNCTION `setIdMunicipioByIDPersona`(IDPersona BIGINT(20)) RETURNS INT(8)
+BEGIN
+	DECLARE IDMunicipio INT DEFAULT 0;
+	DECLARE IDEstado INT DEFAULT 0;
+	
+	DECLARE IDRelacionado INT DEFAULT 0;
+	DECLARE IDRelCNT INT DEFAULT 0;
+	DECLARE NombreMun VARCHAR(100);
+	DECLARE IDRelUQ INT DEFAULT 0;
+	
+	SET IDMunicipio = (SELECT `clave_de_municipio` FROM `socios_vivienda` WHERE `socio_numero`=IDPersona ORDER BY `principal` DESC LIMIT 0,1);
+	SET IDEstado = (SELECT `clave_de_entidadfederativa` FROM `socios_vivienda` WHERE `socio_numero`=IDPersona ORDER BY `principal` DESC LIMIT 0,1);
+	
+	IF IDMunicipio IS NOT NULL THEN
+		-- Crear Llave Unica
+		SET IDRelUQ = CAST(CONCAT(IDEstado, RIGHT(CONCAT('000',IDMunicipio),3)) AS UNSIGNED);
+		-- Validar si existe en xcatalogo
+		SET IDRelCNT = (SELECT COUNT(*) FROM `personas_xclasificacion` WHERE `idpersonas_xclasificacion`=IDRelUQ);
+		IF ISNULL(IDRelCNT) OR IDRelCNT<=0 THEN
+			-- Insertar nuevo registro municipio
+			SET NombreMun = (SELECT `nombre_del_municipio` FROM `general_municipios` WHERE `clave_unica`=IDRelUQ LIMIT 0,1);
+			INSERT INTO `personas_xclasificacion`(`idpersonas_xclasificacion`,`descripcion_xclasificacion`) VALUES (IDRelUQ,NombreMun);
+		END IF;
+	END IF;
+
+	RETURN IDRelUQ;
+
+    END$$
+
+DELIMITER ;
+
+
+
+
+
+-- --------------------------------
+-- - Procedimiento Crea Saldo por Operacion
+-- - Mayo/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `proc_rebuild_cta_sdos`$$
+
+CREATE PROCEDURE `proc_rebuild_cta_sdos`()
+
+BEGIN
+
+DECLARE done 				INT DEFAULT FALSE;
+DECLARE vIDMvto				INT DEFAULT 0;
+DECLARE vIDCta				BIGINT(20) DEFAULT 0;
+DECLARE vIDCta2				BIGINT(20) DEFAULT 0;
+DECLARE vMonto				DOUBLE(12,2) DEFAULT 0;
+DECLARE vSdo				DOUBLE(12,2) DEFAULT 0;
+DECLARE vAfecta				INT DEFAULT 0;
+
+
+DECLARE cur1 CURSOR FOR SELECT `idcaptacion_cuentas_sdos`,`cuenta`,`afectacion_real`,`afectacion` FROM `captacion_cuentas_sdos` ORDER BY `cuenta`,`fecha`,`recibo`;
+
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+
+
+OPEN cur1;
+
+read_loop: LOOP
+    FETCH cur1 INTO vIDMvto, vIDCta, vMonto, vAfecta;
+    
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+
+    IF vIDCta2 != vIDCta THEN
+	SET vSdo = 0;
+    END IF;
+    
+    SET vSdo = vSdo + (vMonto * vAfecta);
+
+    UPDATE `captacion_cuentas_sdos` SET `saldo_diario`=vSdo WHERE `idcaptacion_cuentas_sdos`=vIDMvto;
+
+
+    SET vIDCta2 = vIDCta;
+
+
+  END LOOP;
+
+
+END$$
+
+DELIMITER ;
+
+
+
+-- --------------------------------
+-- - Procedimiento Crea Saldo por Operacion - Por Cuenta
+-- - Mayo/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `proc_rebuild_cta_sdos_id`$$
+
+CREATE PROCEDURE `proc_rebuild_cta_sdos_id`(IDCuenta BIGINT(20))
+
+BEGIN
+
+DECLARE done 				INT DEFAULT FALSE;
+DECLARE vIDMvto				INT DEFAULT 0;
+DECLARE vIDCta				BIGINT(20) DEFAULT 0;
+DECLARE vIDCta2				BIGINT(20) DEFAULT 0;
+DECLARE vMonto				DOUBLE(12,2) DEFAULT 0;
+DECLARE vSdo				DOUBLE(12,2) DEFAULT 0;
+DECLARE vAfecta				INT DEFAULT 0;
+
+
+DECLARE cur1 CURSOR FOR SELECT `idcaptacion_cuentas_sdos`,`cuenta`,`afectacion_real`,`afectacion` FROM `captacion_cuentas_sdos` WHERE `cuenta`=IDCuenta ORDER BY `cuenta`,`fecha`,`recibo`;
+
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+
+
+OPEN cur1;
+
+read_loop: LOOP
+    FETCH cur1 INTO vIDMvto, vIDCta, vMonto, vAfecta;
+    
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+
+    IF vIDCta2 != vIDCta THEN
+	SET vSdo = 0;
+    END IF;
+    
+    SET vSdo = vSdo + (vMonto * vAfecta);
+
+    UPDATE `captacion_cuentas_sdos` SET `saldo_diario`=vSdo WHERE `idcaptacion_cuentas_sdos`=vIDMvto;
+
+
+    SET vIDCta2 = vIDCta;
+
+
+  END LOOP;
+
+
+END$$
+
+DELIMITER ;
+
+
+-- --------------------------------
+-- - Procedimiento Rebuild Sdo x Cred
+-- - Mayo/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `proc_rbd_cta_sdos_bycta`$$
+
+CREATE PROCEDURE `proc_rbd_cta_sdos_bycta`(IDCta BIGINT(20))
+BEGIN
+
+DELETE FROM `captacion_cuentas_sdos` WHERE `cuenta` = IDCta;
+
+INSERT INTO `captacion_cuentas_sdos`(`cuenta`,`fecha`,`recibo`,`afectacion_real`,`valor_afectacion`,`afectacion`)
+SELECT 
+									`operaciones_mvtos`.`docto_afectado` AS `cuenta`,
+									`operaciones_mvtos`.`fecha_operacion`  AS `fecha`,
+									`operaciones_mvtos`.`recibo_afectado` AS `recibo`,
+									
+									SUM((`operaciones_mvtos`.`afectacion_real` * BASES.`afectacion`)) AS `afectacion_real`,
+									1 AS `valor_afectacion`,
+									1 AS `afectacion`
+	FROM     `operaciones_mvtos` 
+	INNER JOIN `operaciones_tipos` ON `operaciones_tipos`.`idoperaciones_tipos` = `operaciones_mvtos`.`tipo_operacion` 
+	INNER JOIN (
+	SELECT   `eacp_config_bases_de_integracion_miembros`.`miembro`,
+			 `eacp_config_bases_de_integracion_miembros`.`afectacion`
+		FROM     `eacp_config_bases_de_integracion_miembros`
+		WHERE    ( `eacp_config_bases_de_integracion_miembros`.`codigo_de_base` = 3100 )
+	) BASES ON BASES.`miembro` = `operaciones_tipos`.`idoperaciones_tipos`
+WHERE `operaciones_mvtos`.`docto_afectado` = IDCta
+GROUP BY `operaciones_mvtos`.`recibo_afectado`					
+				ORDER BY
+					`operaciones_mvtos`.`docto_afectado`,
+					`operaciones_mvtos`.`fecha_afectacion`,
+					BASES.`afectacion` DESC;
+
+
+CALL proc_rebuild_cta_sdos_id(IDCta);
+
+
+END$$
+
+DELIMITER ;
+
 
 
 

@@ -1656,13 +1656,14 @@ AS `iddependencia`,
 	`socios_general`.`telefono_principal` AS `telefono`,
 
 	`socios_figura_juridica`.`descripcion_figura_juridica` AS `figura_juridica`,
-	`socios_general`.`sucursal` AS `sucursal`,TIMESTAMPDIFF(YEAR, `socios_general`.`fechanacimiento`, CURDATE()) AS `edad`
-
+	`socios_general`.`sucursal` AS `sucursal`,TIMESTAMPDIFF(YEAR, `socios_general`.`fechanacimiento`, CURDATE()) AS `edad`,
+	`personas_xclasificacion`.`descripcion_xclasificacion` AS `xclasificacion`
 FROM     `socios_general` 
 INNER JOIN `socios_aeconomica_dependencias`  ON `socios_general`.`dependencia` = `socios_aeconomica_dependencias`.`idsocios_aeconomica_dependencias` 
 INNER JOIN `socios_tipoingreso`  ON `socios_general`.`tipoingreso` = `socios_tipoingreso`.`idsocios_tipoingreso` 
 INNER JOIN `socios_figura_juridica`  ON `socios_general`.`personalidad_juridica` = `socios_figura_juridica`.`idsocios_figura_juridica` 
-INNER JOIN `socios_genero`  ON `socios_general`.`genero` = `socios_genero`.`idsocios_genero` 
+INNER JOIN `socios_genero`  ON `socios_general`.`genero` = `socios_genero`.`idsocios_genero`
+LEFT OUTER JOIN `personas_xclasificacion` ON `personas_xclasificacion`.`idpersonas_xclasificacion`=`socios_general`.`xclasificacion`
 )$$
 
 DELIMITER ;
@@ -2551,4 +2552,35 @@ WHERE `fecha_de_pago`<=NOW() AND `estatusactivo`=1
 ;$$
 
 DELIMITER ;
+
+
+-- - --------------------------------
+-- - Vista de Ultimos SDPM
+-- - Mayo/2020
+-- - --------------------------------
+
+	
+DELIMITER $$
+
+DROP VIEW IF EXISTS `vw_captacion_ult_sdpm`$$
+-- DROP TABLE IF EXISTS `vw_captacion_ult_sdpm`$$
+
+CREATE
+    VIEW `vw_captacion_ult_sdpm` 
+    AS
+
+SELECT `recibo`,`fecha`,`dias`,`monto`,`cuenta`, IF(`dias`>0,(`monto`/`dias`),0) AS `saldo`
+FROM `captacion_sdpm_historico` 
+INNER JOIN (
+SELECT `recibo` AS `rrecibo`,MAX(`fecha`) AS `ffecha` FROM `captacion_sdpm_historico` GROUP BY `recibo`
+) MSDPM ON MSDPM.`rrecibo` = `captacion_sdpm_historico`.`recibo`
+WHERE `numero_de_socio`=1004084
+AND MSDPM.`ffecha` = `captacion_sdpm_historico`.`fecha`
+
+
+;$$
+
+DELIMITER ;
+
+
 
