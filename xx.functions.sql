@@ -5444,5 +5444,42 @@ END$$
 DELIMITER ;
 
 
+-- --------------------------------
+-- - Procedimiento Echale, estatus operativo
+-- - Mayo/2021
+-- - --------------------------------
+
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getCredEstadoOperativo`$$
+
+CREATE FUNCTION `getCredEstadoOperativo`(IDCredito BIGINT(20),Saldo DOUBLE(18,2)) RETURNS VARCHAR(20)
+BEGIN
+	DECLARE mEstadoOperativo VARCHAR(20) DEFAULT '';
+	DECLARE mReest INTEGER DEFAULT 0;
+	
+	IF Saldo <= 0.99 THEN
+		SET mEstadoOperativo = 'LIQUIDADO';
+		
+		SET mReest = (SELECT COUNT(*) FROM `creditos_datos_originacion` WHERE `clave_vinculada`=IDCredito AND `tipo_originacion`=4);
+		
+		IF mReest > 0 THEN
+			SET mEstadoOperativo = 'REESTRUCTURADO';
+		END IF;
+		
+	ELSE
+	
+		SET mEstadoOperativo = 'ACTIVO';
+	
+	END IF;
+	
+
+	RETURN mEstadoOperativo;
+
+    END$$
+
+DELIMITER ;
+
 
 
