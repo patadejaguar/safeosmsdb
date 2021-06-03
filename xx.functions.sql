@@ -5196,48 +5196,54 @@ DELIMITER ;
 -- - Mayo/2021
 -- - --------------------------------
 
-DELIMITER $$
+-- DELIMITER $$
 
 
-DROP TRIGGER IF EXISTS `socios_vivienda_BEFORE_UPDATE`$$
+DROP TRIGGER IF EXISTS `socios_vivienda_BEFORE_UPDATE`;
+
+-- DROP TRIGGER IF EXISTS `socios_vivienda_BEFORE_UPDATE`$$
+
+-- CREATE DEFINER = CURRENT_USER TRIGGER `socios_vivienda_BEFORE_UPDATE` BEFORE UPDATE ON `socios_vivienda` FOR EACH ROW
+-- BEGIN
+
+-- IF OLD.principal != NEW.principal THEN
+
+-- 	IF (SELECT COUNT(*) FROM `socios_vivienda` WHERE `socio_numero`=NEW.socio_numero AND `idsocios_vivienda` != NEW.idsocios_vivienda) > 0 THEN
+--		UPDATE `socios_vivienda` SET principal = '0' WHERE `socio_numero`=NEW.socio_numero  AND `idsocios_vivienda` != NEW.idsocios_vivienda;
+-- 	END IF;
+
+-- END IF;
 
 
-CREATE DEFINER = CURRENT_USER TRIGGER `socios_vivienda_BEFORE_UPDATE` BEFORE UPDATE ON `socios_vivienda` FOR EACH ROW
-BEGIN
-IF OLD.principal != NEW.principal THEN
-	IF NEW.principal = '1' THEN
-		UPDATE `socios_vivienda` SET principal = '0' WHERE `socio_numero`=NEW.socio_numero;
-	END IF;
 
-END IF;
-
-END$$
+-- END$$
 
 
-DELIMITER ;
+-- DELIMITER ;
 
 
-DELIMITER $$
+-- DELIMITER $$
 
-DROP TRIGGER IF EXISTS `socios_vivienda_BEFORE_INSERT`$$
+-- DROP TRIGGER IF EXISTS `socios_vivienda_BEFORE_INSERT`$$
+DROP TRIGGER IF EXISTS `socios_vivienda_BEFORE_INSERT`;
 
-CREATE DEFINER = CURRENT_USER TRIGGER `socios_vivienda_BEFORE_INSERT` BEFORE INSERT ON `socios_vivienda` FOR EACH ROW
-BEGIN
+-- CREATE DEFINER = CURRENT_USER TRIGGER `socios_vivienda_BEFORE_INSERT` BEFORE INSERT ON `socios_vivienda` FOR EACH ROW
+-- BEGIN
 
-IF NEW.principal IS NULL THEN
-	SET NEW.principal = '1';
-END IF;
+-- IF NEW.principal IS NULL THEN
+--	SET NEW.principal = '1';
+-- END IF;
 
-IF NEW.principal = '1' THEN
-	IF (SELECT COUNT(*) FROM `socios_vivienda` WHERE `socio_numero`=NEW.socio_numero) > 0 THEN
-		UPDATE `socios_vivienda` SET principal = '0' WHERE `socio_numero`=NEW.socio_numero;
-	END IF;
-END IF;
+-- IF NEW.principal = '1' THEN
+--	IF (SELECT COUNT(*) FROM `socios_vivienda` WHERE `socio_numero`=NEW.socio_numero AND `idsocios_vivienda` != NEW.idsocios_vivienda) > 0 THEN
+--		UPDATE `socios_vivienda` SET principal = '0' WHERE `socio_numero`=NEW.socio_numero  AND `idsocios_vivienda` != NEW.idsocios_vivienda;
+--	END IF;
+-- END IF;
 
-END$$
+-- END$$
 
 
-DELIMITER ;
+-- DELIMITER ;
 
 
 
