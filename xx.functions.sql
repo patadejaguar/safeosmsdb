@@ -5498,7 +5498,7 @@ DELIMITER ;
 
 -- --------------------------------
 -- - Procedimiento Perfil de Avisos por Producto
--- - Mayo/2021
+-- - Junio/2021
 -- - --------------------------------
 
 DELIMITER $$
@@ -5522,7 +5522,7 @@ DECLARE vHorarioF			VARCHAR(10) DEFAULT '';
 
 
 
-DECLARE cur1 CURSOR FOR SELECT `creditos_solicitud`.`numero_socio` AS `persona`,`creditos_solicitud`.`sucursal`, COUNT( `creditos_solicitud`.`numero_solicitud` )  AS `creditos` FROM `creditos_solicitud` WHERE ( `creditos_solicitud`.`saldo_actual` >0.99 ) AND ( `creditos_solicitud`.`tipo_convenio` = IDProducto ) GROUP BY `persona`;
+DECLARE cur1 CURSOR FOR SELECT `creditos_solicitud`.`numero_socio` AS `persona`,`creditos_solicitud`.`sucursal`, COUNT( `creditos_solicitud`.`numero_solicitud` )  AS `creditos` FROM `creditos_solicitud` WHERE ( `creditos_solicitud`.`saldo_actual` >0.99 ) AND ( `creditos_solicitud`.`tipo_convenio` = IDProducto ) AND (`creditos_solicitud`.`estatus_actual` != 50) GROUP BY `persona`;
 DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
 
 OPEN cur1;
