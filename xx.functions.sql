@@ -5496,4 +5496,61 @@ BEGIN
 DELIMITER ;
 
 
+-- --------------------------------
+-- - Procedimiento Perfil de Avisos por Producto
+-- - Mayo/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `proc_crear_perfil_avisos_p`$$
+
+CREATE PROCEDURE `proc_crear_perfil_avisos_p`(IDProducto INT(4))
+
+BEGIN
+
+DECLARE done 				INT DEFAULT FALSE;
+
+DECLARE vIDPersona			BIGINT(20) DEFAULT 0;
+DECLARE vNumCreds			INT DEFAULT 0;
+DECLARE vSucursal			VARCHAR(20) DEFAULT 'matriz';
+
+DECLARE vExist1				INT DEFAULT 0;
+DECLARE vExist2				INT DEFAULT 0;
+DECLARE vHorarioI			VARCHAR(10) DEFAULT '';
+DECLARE vHorarioF			VARCHAR(10) DEFAULT '';
+
+
+
+DECLARE cur1 CURSOR FOR SELECT `creditos_solicitud`.`numero_socio` AS `persona`,`creditos_solicitud`.`sucursal`, COUNT( `creditos_solicitud`.`numero_solicitud` )  AS `creditos` FROM `creditos_solicitud` WHERE ( `creditos_solicitud`.`saldo_actual` >0.99 ) AND ( `creditos_solicitud`.`tipo_convenio` = IDProducto ) GROUP BY `persona`;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+OPEN cur1;
+
+read_loop: LOOP
+    FETCH cur1 INTO vIDPersona,vSucursal,vNumCreds;
+    
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+    SET vHorarioI = (SELECT `hora_de_inicio_de_operaciones` FROM `general_sucursales` WHERE `codigo_sucursal`=vSucursal LIMIT 0,1);
+    SET vHorarioF = (SELECT `hora_de_fin_de_operaciones` FROM `general_sucursales` WHERE `codigo_sucursal`=vSucursal LIMIT 0,1);
+    
+    SET vExist1 = (SELECT COUNT(*) FROM `personas_perfil_avisos` WHERE `persona`=vIDPersona AND `canal_de_envio`='SMS');
+    SET vExist2 = (SELECT COUNT(*) FROM `personas_perfil_avisos` WHERE `persona`=vIDPersona AND `canal_de_envio`='CORREO_ELECTRONICO');
+    
+    IF vExist1 <=0 THEN
+	INSERT INTO `personas_perfil_avisos` (`persona`,`canal_de_envio`,`horario_inicial`,`horario_final`) VALUES (vIDPersona, 'SMS', vHorarioI, vHorarioF);
+    END IF;
+
+    IF vExist2 <=0 THEN
+	INSERT INTO `personas_perfil_avisos` (`persona`,`canal_de_envio`,`horario_inicial`,`horario_final`) VALUES (vIDPersona, 'CORREO_ELECTRONICO', vHorarioI, vHorarioF);
+    END IF;
+    
+  END LOOP;
+
+
+END$$
+
+DELIMITER ;
 
