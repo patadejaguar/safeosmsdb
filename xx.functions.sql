@@ -5533,18 +5533,18 @@ read_loop: LOOP
     IF done THEN
       LEAVE read_loop;
     END IF;
-    SET vHorarioI = (SELECT `hora_de_inicio_de_operaciones` FROM `general_sucursales` WHERE `codigo_sucursal`=vSucursal LIMIT 0,1);
-    SET vHorarioF = (SELECT `hora_de_fin_de_operaciones` FROM `general_sucursales` WHERE `codigo_sucursal`=vSucursal LIMIT 0,1);
+    SET vHorarioI = (SELECT CONCAT(`hora_de_inicio_de_operaciones`,':00') FROM `general_sucursales` WHERE `codigo_sucursal`=vSucursal LIMIT 0,1);
+    SET vHorarioF = (SELECT CONCAT(`hora_de_fin_de_operaciones`,':00') FROM `general_sucursales` WHERE `codigo_sucursal`=vSucursal LIMIT 0,1);
     
-    SET vExist1 = (SELECT COUNT(*) FROM `personas_perfil_avisos` WHERE `persona`=vIDPersona AND `canal_de_envio`='SMS');
-    SET vExist2 = (SELECT COUNT(*) FROM `personas_perfil_avisos` WHERE `persona`=vIDPersona AND `canal_de_envio`='CORREO_ELECTRONICO');
+    SET vExist1 = (SELECT COUNT(*) FROM `personas_perfil_avisos` WHERE `persona`=vIDPersona AND `canal_de_envio`='sms');
+    SET vExist2 = (SELECT COUNT(*) FROM `personas_perfil_avisos` WHERE `persona`=vIDPersona AND `canal_de_envio`='email');
     
     IF vExist1 <=0 THEN
-	INSERT INTO `personas_perfil_avisos` (`persona`,`canal_de_envio`,`horario_inicial`,`horario_final`) VALUES (vIDPersona, 'SMS', vHorarioI, vHorarioF);
+	INSERT INTO `personas_perfil_avisos` (`persona`,`canal_de_envio`,`horario_inicial`,`horario_final`) VALUES (vIDPersona, 'sms', vHorarioI, vHorarioF);
     END IF;
 
     IF vExist2 <=0 THEN
-	INSERT INTO `personas_perfil_avisos` (`persona`,`canal_de_envio`,`horario_inicial`,`horario_final`) VALUES (vIDPersona, 'CORREO_ELECTRONICO', vHorarioI, vHorarioF);
+	INSERT INTO `personas_perfil_avisos` (`persona`,`canal_de_envio`,`horario_inicial`,`horario_final`) VALUES (vIDPersona, 'email', vHorarioI, vHorarioF);
     END IF;
     
   END LOOP;
