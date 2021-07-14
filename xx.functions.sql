@@ -288,6 +288,8 @@ CREATE
 
 DELIMITER ;
 
+-- - Funcion que obtiene un nombre de usuario por Id
+
 DELIMITER $$
 
 DROP FUNCTION IF EXISTS `getUserByID`$$
@@ -296,6 +298,13 @@ CREATE FUNCTION `getUserByID`(UsrID VARCHAR(100) )
 	RETURNS VARCHAR(100)
     BEGIN
 	DECLARE NUser VARCHAR(100);
+	
+	IF UsrID = 'USUARIO_DESCONOCIDO' THEN
+		SET UsrID =	'0';
+	END IF;
+	
+	SET UsrID = CONVERT(UsrID, UNSIGNED);
+	
 	SET NUser = (SELECT nombrecompleto FROM usuarios WHERE idusuarios = UsrID);
 	IF ISNULL(NUser) THEN
 		SET NUser = "_NO_REGISTRADO_";
@@ -453,14 +462,24 @@ BEGIN
 
 DELIMITER ;
 
--- 11Octubre2013
+
+-- 11-Octubre2013
+-- Fix 16/06/2021
+
 DELIMITER $$
 
 DROP FUNCTION IF EXISTS `getFechaMX`$$
 
-CREATE FUNCTION `getFechaMX`(mFecha DATE) RETURNS VARCHAR(20) CHARSET latin1
+CREATE FUNCTION `getFechaMX`(mFecha VARCHAR(15)) RETURNS VARCHAR(20) CHARSET latin1
 BEGIN
-	RETURN DATE_FORMAT(mFecha, "%d/%b/%y");
+	DECLARE mFechaValida DATE;
+	 -- DECLARE EXIT HANDLER FOR SQLSTATE '1292' RETURN NULL;
+	IF mFecha = '0000-00-00' THEN
+		RETURN '';
+	END IF;
+	SET mFechaValida = CAST(mFecha AS DATE);
+	
+	RETURN DATE_FORMAT(mFechaValida, "%d/%b/%y");
     END$$
 
 DELIMITER ;
@@ -746,7 +765,7 @@ FROM `bancos_operaciones`
 GROUP BY `bancos_operaciones`.`recibo_relacionado`;
 ALTER TABLE `tmp_recibos_datos_bancarios` ADD INDEX `indexm` (`recibo` ASC, `banco` ASC);
 
-DROP VIEW IF EXISTS `listado_de_ingresos`;
+-- DROP VIEW IF EXISTS `listado_de_ingresos`;
 DROP TABLE IF EXISTS `listado_de_ingresos`;
 
 CREATE TABLE `listado_de_ingresos` AS  
@@ -811,7 +830,7 @@ FROM
 
 WHERE ((`eacp_config_bases_de_integracion_miembros`.`codigo_de_base` = 10001)
 	AND (`operaciones_recibostipo`.`mostrar_en_corte` <> '0')
-	AND (`operaciones_mvtos`.`fecha_operacion` >= CONCAT((getEjercicioDeTrabajo()-1),'-01-01') )
+	AND (`operaciones_mvtos`.`fecha_operacion` >= CONCAT((getEjercicioDeTrabajo()-3),'-01-01') )
 )
 ORDER BY `eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,`operaciones_mvtos`.`fecha_operacion`,`socios`.`iddependencia`,`socios`.`nombre` ;
 
@@ -833,7 +852,7 @@ DROP PROCEDURE IF EXISTS `proc_historial_de_pagos`$$
 CREATE PROCEDURE `proc_historial_de_pagos`()
 BEGIN
 
-DROP VIEW IF EXISTS historial_de_pagos;
+-- DROP VIEW IF EXISTS historial_de_pagos;
 DROP TABLE IF EXISTS historial_de_pagos;
 
 CREATE TABLE historial_de_pagos AS  
@@ -1498,110 +1517,110 @@ DROP PROCEDURE IF EXISTS `proc_creditos_letras_pendientes`$$
 CREATE PROCEDURE `proc_creditos_letras_pendientes`()
 BEGIN
 
-DROP VIEW IF EXISTS `creditos_letras_pendientes`;
+-- DROP VIEW IF EXISTS `creditos_letras_pendientes`;
 DROP TABLE IF EXISTS `creditos_letras_pendientes`;
 
 CREATE TABLE `creditos_letras_pendientes` AS  
 (
 SELECT
-  `eacp_config_bases_de_integracion_miembros`.`codigo_de_base` AS `codigo_de_base`,
-  `operaciones_mvtos`.`socio_afectado`                         AS `socio_afectado`,
+		`eacp_config_bases_de_integracion_miembros`.`codigo_de_base`	AS `codigo_de_base`,
+		`socio_afectado`												AS `socio_afectado`,
+		
+		`socio_afectado`												AS `persona`,
+		`docto_afectado`												AS `credito`,
+		`periodo_socio`													AS `parcialidad`,
+		
+		`docto_afectado`												AS `docto_afectado`,
+		`periodo_socio`													AS `periodo_socio`,
+		MIN(`fecha_afectacion`)											AS `fecha_de_pago`,
+		MAX(`fecha_afectacion`)											AS `fecha_de_vencimiento`,
+		
+		`creditos_solicitud`.`monto_solicitado` 						AS `monto_original`,
+		`creditos_solicitud`.`saldo_actual`     						AS `saldo_principal`,
+		
+		SUM(IF(`tipo_operacion` = 410,`afectacion_real`,0))				AS `capital`,
+		SUM(IF(`tipo_operacion` = 411,`afectacion_real`,0))				AS `interes`,
+		SUM(IF(`tipo_operacion` = 413,`afectacion_real`,0))				AS `iva`,
+		SUM(IF(`tipo_operacion` = 412,`afectacion_real`,0))				AS `ahorro`,
 
-`operaciones_mvtos`.`socio_afectado`                         AS `persona`,
-`operaciones_mvtos`.`docto_afectado`                         AS `credito`,
-`operaciones_mvtos`.`periodo_socio`                          AS `parcialidad`,
+		SUM(IF((`tipo_operacion` = 410  AND `fecha_afectacion` <= PRM.`fecha_corte`) ,`afectacion_real`,0)) 								AS `capital_exigible`,
+		SUM(IF((`tipo_operacion` = 411 AND `fecha_afectacion` <= PRM.`fecha_corte`),`afectacion_real`,0)) 									AS `interes_exigible`,
+		SUM(IF((`tipo_operacion` = 413  AND `fecha_afectacion` <= PRM.`fecha_corte`),`afectacion_real`,0)) 									AS `iva_exigible`,
+		SUM(IF((`tipo_operacion` = 412  AND `fecha_afectacion` <= PRM.`fecha_corte`),`afectacion_real`,0)) 									AS `ahorro_exigible`,
+		SUM(IF(((`tipo_operacion` < 410 OR `tipo_operacion` > 413)  AND `fecha_afectacion` <= PRM.`fecha_corte`) , `afectacion_real`,0)) 	AS `otros_exigible`,
+		SUM(IF((`afectacion_real` * `eacp_config_bases_de_integracion_miembros`.`afectacion`)>0 AND (`fecha_afectacion` <= PRM.`fecha_corte`) AND `tipo_operacion` = 410,1,0)) AS `letras_exigibles`,
+		
+		ROUND(SUM(
+		IF((`tipo_operacion` = 410  AND `fecha_afectacion` <= PRM.`fecha_corte` AND `afectacion_real`>0),
+		((`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `fecha_afectacion`) * (`tasa_moratorio`) ) / PRM.`divisor_interes`)
+		, 0 )),2) AS `interes_moratorio`,
+		
+		ROUND(SUM(
+		IF((`tipo_operacion` = 410  AND `fecha_afectacion` <= PRM.`fecha_corte` AND `afectacion_real`>0),
+		((`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `fecha_afectacion`) * (`tasa_moratorio`) ) / PRM.`divisor_interes`)
+		, 0 )),2) AS `mora`,
+		
+		ROUND(
+		(SUM(
+		IF((`tipo_operacion` = 410  AND `fecha_afectacion` <= PRM.`fecha_corte` AND `afectacion_real`>0),
+		((`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `fecha_afectacion`) * (`tasa_moratorio`) ) / PRM.`divisor_interes`)
+		, 0 ))*PRM.`tasa_iva`),2) AS `iva_moratorio`,
+		
+		IF(SUM(IF((`tipo_operacion` < 410 OR `tipo_operacion` > 413),0, `afectacion_real`))<=0,0,
+		MAX(
+		IF((`tipo_operacion` = 410  AND `fecha_afectacion` <= PRM.`fecha_corte` AND `afectacion_real`>0),
+		(DATEDIFF(PRM.`fecha_corte`, `fecha_afectacion`))
+		, 0 ))
+		) AS `dias`,
+		
+		SUM(IF((`tipo_operacion` < 410 OR `tipo_operacion` > 413), `afectacion_real`,0)) 		AS `otros`,
+		
+		SUM((`afectacion_real` * `eacp_config_bases_de_integracion_miembros`.`afectacion`)) 	AS `letra`,
+		
+		SUM(IF((`tipo_operacion` < 410 OR `tipo_operacion` > 413),0, `afectacion_real`)) 		AS `total_sin_otros`,
+		
+		MAX(IF((`tipo_operacion` < 410 OR `tipo_operacion` > 413),`tipo_operacion`,0)) 			AS `clave_otros`
+		
+		,ROUND(
+		(SUM(
+		IF((`tipo_operacion` = 410  AND `fecha_afectacion` <= PRM.`fecha_corte` AND `creditos_solicitud`.`pagos_autorizados`=`periodo_socio`),
+		((`creditos_solicitud`.`saldo_actual` * DATEDIFF(PRM.`fecha_corte`, `fecha_afectacion`) * (`creditos_solicitud`.`tasa_interes`) ) / PRM.`divisor_interes`)
+		, 0 )) ),2) AS `int_corriente`,
+		
+		ROUND(SUM(
+		IF((`tipo_operacion` = 410  AND `fecha_afectacion` <= PRM.`fecha_corte` AND `afectacion_real`>0),
+		((`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `fecha_afectacion`) * (`creditos_solicitud`.`tasa_interes`) ) / PRM.`divisor_interes`)
+		, 0 )),2) AS `int_corriente_letra`
+		
+		,SUM(IF((`tipo_operacion` = 410  AND `fecha_afectacion` > PRM.`fecha_corte`),`afectacion_real`,0)) 								AS `capital_nopagado`,
+		SUM(IF((`tipo_operacion` = 411 AND `fecha_afectacion` > PRM.`fecha_corte`),`afectacion_real`,0)) 								AS `interes_nopagado`,
+		SUM(IF((`tipo_operacion` = 413  AND `fecha_afectacion` > PRM.`fecha_corte`),`afectacion_real`,0)) 								AS `iva_nopagado`,
+		SUM(IF((`tipo_operacion` = 412  AND `fecha_afectacion` > PRM.`fecha_corte`),`afectacion_real`,0)) 								AS `ahorro_nopagado`,
+		SUM(IF(((`tipo_operacion` < 410 OR `tipo_operacion` > 413)  AND `fecha_afectacion` > PRM.`fecha_corte`) , `afectacion_real`,0)) AS `otros_nopagado`
+		,IF((`tipo_operacion` = 410 AND `periodo_socio`= (`creditos_solicitud`.`ultimo_periodo_afectado`+1)),  MMC.`cargos_cbza`,0) 	AS `gastos_de_cobranza`
 
-  `operaciones_mvtos`.`docto_afectado`                         AS `docto_afectado`,
-  `operaciones_mvtos`.`periodo_socio`                          AS `periodo_socio`,
-MIN(`operaciones_mvtos`.`fecha_afectacion`)                  AS `fecha_de_pago`,
-MAX(`operaciones_mvtos`.`fecha_afectacion`)                   AS `fecha_de_vencimiento`,
+		FROM
+			`operaciones_mvtos` `operaciones_mvtos` 
+				INNER JOIN `creditos_solicitud` `creditos_solicitud` 
+				ON `operaciones_mvtos`.`docto_afectado` = `creditos_solicitud`.
+				`numero_solicitud` 
+					INNER JOIN `eacp_config_bases_de_integracion_miembros` 
+					`eacp_config_bases_de_integracion_miembros` 
+					ON `operaciones_mvtos`.`tipo_operacion` = 
+					`eacp_config_bases_de_integracion_miembros`.`miembro`
+		INNER JOIN ( SELECT getTasaIVAGeneral() AS `tasa_iva`, getDivisorDeInteres() AS `divisor_interes`,getFechaDeCorte() AS  `fecha_corte`) PRM
+		INNER JOIN (SELECT   `clave_de_credito`,`cargos_cbza` FROM `creditos_montos`) MMC ON MMC.`clave_de_credito` = `creditos_solicitud`.`numero_solicitud`
 
-	`creditos_solicitud`.`monto_solicitado` AS `monto_original`,
-	`creditos_solicitud`.`saldo_actual`     AS `saldo_principal`,
-
-SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 410,`operaciones_mvtos`.`afectacion_real`,0)) AS `capital`,
-SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 411,`operaciones_mvtos`.`afectacion_real`,0)) AS `interes`,
-SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 413,`operaciones_mvtos`.`afectacion_real`,0)) AS `iva`,
-SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 412,`operaciones_mvtos`.`afectacion_real`,0)) AS `ahorro`,
-
-SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` <= PRM.`fecha_corte`) ,`operaciones_mvtos`.`afectacion_real`,0)) AS `capital_exigible`,
-SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 411 AND `operaciones_mvtos`.`fecha_afectacion` <= PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `interes_exigible`,
-SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 413  AND `operaciones_mvtos`.`fecha_afectacion` <= PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `iva_exigible`,
-SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 412  AND `operaciones_mvtos`.`fecha_afectacion` <= PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `ahorro_exigible`,
-SUM(IF(((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413)  AND `operaciones_mvtos`.`fecha_afectacion` <= PRM.`fecha_corte`) , `operaciones_mvtos`.`afectacion_real`,0)) AS `otros_exigible`,
-
-ROUND(SUM(
-IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),
-((`operaciones_mvtos`.`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_moratorio`) ) / PRM.`divisor_interes`)
-, 0 )),2) AS `interes_moratorio`,
-
-
-ROUND(SUM(
-IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),
-((`operaciones_mvtos`.`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_moratorio`) ) / PRM.`divisor_interes`)
-, 0 )),2) AS `mora`,
-
-ROUND(
-(SUM(
-IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),
-((`operaciones_mvtos`.`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_moratorio`) ) / PRM.`divisor_interes`)
-, 0 ))*getTasaIVAGeneral()),2) AS `iva_moratorio`,
-
-
-IF(SUM(IF((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413),0, `operaciones_mvtos`.`afectacion_real`))<=0,0,
-SUM(
-IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),
-(DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`))
-, 0 ))
-) AS `dias`,
-
-
-
-SUM(IF((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413), `operaciones_mvtos`.`afectacion_real`,0)) AS `otros`,
-
-SUM((`operaciones_mvtos`.`afectacion_real` * `eacp_config_bases_de_integracion_miembros`.`afectacion`)) AS `letra`,
-
-SUM(IF((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413),0, `operaciones_mvtos`.`afectacion_real`)) AS `total_sin_otros`,
-
-MAX(IF((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413),`operaciones_mvtos`.`tipo_operacion`,0)) AS `clave_otros`
-
-,ROUND(
-(SUM(
-IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte` AND `creditos_solicitud`.`pagos_autorizados`=`operaciones_mvtos`.`periodo_socio`),
-((`creditos_solicitud`.`saldo_actual` * DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_interes`) ) / PRM.`divisor_interes`)
-, 0 )) ),2) AS `int_corriente`,
-
-ROUND(SUM(
-IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),
-((`operaciones_mvtos`.`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_interes`) ) / PRM.`divisor_interes`)
-, 0 )),2) AS `int_corriente_letra`
-
-,SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` > PRM.`fecha_corte`) ,`operaciones_mvtos`.`afectacion_real`,0)) AS `capital_nopagado`,
-SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 411 AND `operaciones_mvtos`.`fecha_afectacion` > PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `interes_nopagado`,
-SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 413  AND `operaciones_mvtos`.`fecha_afectacion` > PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `iva_nopagado`,
-SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 412  AND `operaciones_mvtos`.`fecha_afectacion` > PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `ahorro_nopagado`,
-SUM(IF(((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413)  AND `operaciones_mvtos`.`fecha_afectacion` > PRM.`fecha_corte`) , `operaciones_mvtos`.`afectacion_real`,0)) AS `otros_nopagado`
-
-,IF((`operaciones_mvtos`.`tipo_operacion` = 410 AND `operaciones_mvtos`.`periodo_socio`= (`creditos_solicitud`.`ultimo_periodo_afectado`+1)),  MMC.`cargos_cbza`,0) AS `gastos_de_cobranza`
-
-FROM
-	`operaciones_mvtos` `operaciones_mvtos` 
-		INNER JOIN `creditos_solicitud` `creditos_solicitud` 
-		ON `operaciones_mvtos`.`docto_afectado` = `creditos_solicitud`.
-		`numero_solicitud` 
-			INNER JOIN `eacp_config_bases_de_integracion_miembros` 
-			`eacp_config_bases_de_integracion_miembros` 
-			ON `operaciones_mvtos`.`tipo_operacion` = 
-			`eacp_config_bases_de_integracion_miembros`.`miembro`
-INNER JOIN ( SELECT getTasaIVAGeneral() AS `tasa_iva`, getDivisorDeInteres() AS `divisor_interes`,getFechaDeCorte() AS  `fecha_corte`) PRM
-INNER JOIN (SELECT   `clave_de_credito`,`cargos_cbza` FROM `creditos_montos`) MMC ON MMC.`clave_de_credito` = `creditos_solicitud`.`numero_solicitud`
-     
-WHERE (`eacp_config_bases_de_integracion_miembros`.`codigo_de_base` = 2601)
-AND `operaciones_mvtos`.`tipo_operacion` != 420 
-AND `operaciones_mvtos`.`tipo_operacion` != 431
-AND `creditos_solicitud`.`saldo_actual`  > 0
-GROUP BY `operaciones_mvtos`.`docto_afectado`
-ORDER BY `eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,`operaciones_mvtos`.`docto_afectado`
+		WHERE (`eacp_config_bases_de_integracion_miembros`.`codigo_de_base` = 2601)
+		AND `operaciones_mvtos`.`tipo_operacion` != 420
+		AND `operaciones_mvtos`.`tipo_operacion` != 431
+		AND `operaciones_mvtos`.`tipo_operacion` != 146 /*gastos de cobranza*/ 
+		AND `creditos_solicitud`.`saldo_actual`  > 0
+		-- AND `operaciones_mvtos`.`docto_afectado` != 200187901
+		GROUP BY `operaciones_mvtos`.`docto_afectado`,`operaciones_mvtos`.`periodo_socio`
+		ORDER BY
+		`eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,
+		`operaciones_mvtos`.`docto_afectado`, `operaciones_mvtos`.`periodo_socio`
 ) ;
 
 ALTER TABLE `creditos_letras_pendientes` ADD COLUMN `indice` INT(10) NOT NULL AUTO_INCREMENT AFTER `saldo_principal`, ADD PRIMARY KEY (`indice`);
@@ -1620,7 +1639,7 @@ CREATE
     PROCEDURE `proc_creditos_a_final_de_plazo`()
     BEGIN
 
-	DROP VIEW IF EXISTS `creditos_a_final_de_plazo`;
+--	DROP VIEW IF EXISTS `creditos_a_final_de_plazo`;
 	DROP TABLE IF EXISTS `creditos_a_final_de_plazo`;
 
 CREATE TABLE `creditos_a_final_de_plazo` AS  
@@ -1723,7 +1742,7 @@ CREATE
     PROCEDURE `proc_creditos_letras_del_dia`()
     BEGIN
 
-	DROP VIEW IF EXISTS `creditos_letras_del_dia`;
+-- 	DROP VIEW IF EXISTS `creditos_letras_del_dia`;
 	DROP TABLE IF EXISTS `creditos_letras_del_dia`;
 
 
@@ -2160,7 +2179,11 @@ DROP PROCEDURE IF EXISTS `sp_correcciones`$$
 CREATE  PROCEDURE `sp_correcciones`()
 BEGIN
 
-UPDATE `creditos_solicitud`, `creditos_letras_pendientes_rt` SET `creditos_solicitud`.`fecha_de_proximo_pago`=`creditos_letras_pendientes_rt`.`fecha_de_pago` WHERE `creditos_solicitud`.`numero_solicitud`=`creditos_letras_pendientes_rt`.`docto_afectado`;
+UPDATE `creditos_solicitud` AS CS INNER JOIN
+(
+SELECT MIN(`fecha_de_pago`) AS `fecha_de_pago_rt` ,`credito` AS `credito` FROM `creditos_letras_pendientes_rt` WHERE `letra`>0  GROUP BY `credito` ORDER BY `periodo_socio`
+) AS CLP ON CLP.`credito`= CS.`numero_solicitud`
+SET `fecha_de_proximo_pago`=CLP.`fecha_de_pago_rt`;
 
 UPDATE `creditos_solicitud` SET `fecha_de_proximo_pago`=DATE_ADD(`fecha_ultimo_mvto`, INTERVAL `periocidad_de_pago` DAY) WHERE  `fecha_de_proximo_pago`='0000-00-00' AND `periocidad_de_pago` != 360;
 UPDATE `creditos_solicitud` SET `fecha_de_proximo_pago`=`fecha_vencimiento` WHERE  `fecha_de_proximo_pago`='0000-00-00' AND `periocidad_de_pago` = 360;
@@ -2268,6 +2291,12 @@ UPDATE `socios_general` SET `yclasificacion`=1 WHERE `yclasificacion`=0;
 UPDATE `socios_general` SET `zclasificacion`=1 WHERE `zclasificacion`=0;
 
 
+UPDATE `socios_vivienda` SET `calle`=UC_FIRST(`calle`),`numero_exterior`=UC_FIRST(`numero_exterior`),`colonia` = UC_FIRST(`colonia`), `estado`=UC_FIRST(`estado`),`municipio`=UC_FIRST(`municipio`),`referencia`=UC_FIRST(`referencia`),`nombre_de_pais`=UC_FIRST(`nombre_de_pais`);
+
+UPDATE `general_estados` SET `nombre` = UC_FIRST(`nombre`);
+
+
+UPDATE `socios_aeconomica` SET `domicilio_ae`=UC_FIRST(`domicilio_ae`), `nombre_ae`=UC_FIRST(`nombre_ae`), `localidad_ae`=UC_FIRST(`localidad_ae`), `municipio_ae`=UC_FIRST(`municipio_ae`), `estado_ae`=UC_FIRST(`estado_ae`), `departamento_ae`=UC_FIRST(`departamento_ae`), `puesto`=UC_FIRST(`puesto`), `descripcion`=UC_FIRST(`descripcion`);
 
 END$$
 
@@ -2734,7 +2763,7 @@ DROP PROCEDURE IF EXISTS `proc_personas_domicilios`$$
 CREATE PROCEDURE `proc_personas_domicilios`()
 BEGIN
 
-DROP VIEW IF EXISTS `tmp_personas_domicilios`;
+-- DROP VIEW IF EXISTS `tmp_personas_domicilios`;
 DROP TABLE IF EXISTS `tmp_personas_domicilios`;
 
 CREATE TABLE `tmp_personas_domicilios` AS  
@@ -2965,7 +2994,7 @@ DROP PROCEDURE IF EXISTS `proc_creds_prox_letras`$$
 CREATE PROCEDURE `proc_creds_prox_letras`()
 BEGIN
 
-DROP VIEW IF EXISTS `tmp_creds_prox_letras`;
+-- DROP VIEW IF EXISTS `tmp_creds_prox_letras`;
 DROP TABLE IF EXISTS `tmp_creds_prox_letras`;
 
 CREATE TABLE `tmp_creds_prox_letras` AS  
@@ -4536,4 +4565,1002 @@ DELIMITER ;
 
 
 
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `sp_fix_pago_planes`$$
+CREATE  PROCEDURE `sp_fix_pago_planes`()
+BEGIN
+
+DECLARE mFechaOperacion 	DATE DEFAULT CURDATE();
+DECLARE mToleranciaPagos 	DOUBLE(6,2) DEFAULT 2;
+DECLARE mCreditoId		BIGINT(20) DEFAULT 0;
+DECLARE mClave			BIGINT(20) DEFAULT 0;
+DECLARE mCapital	 	DOUBLE(18,2) DEFAULT 0;
+DECLARE mFechaPago	 	DATE DEFAULT CURDATE();
+DECLARE mPeriodo		INT(4) DEFAULT 0;
+
+DECLARE mMontoPagado 	DOUBLE(18,2) DEFAULT 0;
+DECLARE mMontoObligado 	DOUBLE(18,2) DEFAULT 0;
+DECLARE mDiferencia	DOUBLE(18,2) DEFAULT 0;
+
+DECLARE done INT DEFAULT FALSE;
+
+DECLARE cur1 CURSOR FOR SELECT `plan_de_pago`, `clave_de_credito`, `capital`,`fecha_de_pago`,`numero_de_parcialidad`
+FROM `creditos_plan_de_pagos` 
+WHERE `fecha_de_pago`<=mFechaOperacion AND (`capital`-`pag_cap`)>= mToleranciaPagos;
+
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+
+-- DROP TABLE IF EXISTS `tmp_personas_estadisticas`;
+
+
+
+OPEN cur1;
+
+read_loop: LOOP
+    FETCH cur1 INTO mClave,mCreditoId,mCapital,mFechaPago,mPeriodo;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+
+	
+	SET mMontoPagado = (SELECT SUM(`afectacion_real`) AS `capital_pagado` FROM `operaciones_mvtos` 
+	WHERE `tipo_operacion`=120 AND `fecha_operacion`<=mFechaOperacion AND `docto_afectado`=mCreditoId GROUP BY `docto_afectado`);
+	SET mMontoObligado = (SELECT SUM(`capital`) AS `capital_obligado` FROM `creditos_plan_de_pagos` 
+		WHERE `clave_de_credito`=mCreditoId AND `numero_de_parcialidad`<=mPeriodo AND `estatusactivo`=1 GROUP BY `clave_de_credito`);
+	IF mMontoPagado >= mMontoObligado THEN
+		UPDATE `creditos_plan_de_pagos` SET `pag_cap`=`capital` WHERE `plan_de_pago`=mClave;
+	ELSE 
+		SET mDiferencia = (mMontoPagado - mMontoObligado);
+		IF mDiferencia > 0 THEN
+			UPDATE `creditos_plan_de_pagos` SET `pag_cap`=mDiferencia WHERE `plan_de_pago`=mClave;
+		ELSE
+			UPDATE `creditos_plan_de_pagos` SET `pag_cap`=0 WHERE `plan_de_pago`=mClave;
+		END IF;
+	END IF;
+  END LOOP;
+
+  CLOSE cur1;
+  
+
+
+
+
+END$$
+
+
+DELIMITER ;
+
+
+-- --------------------------------
+-- - Devengar Intereses de Letras
+-- - Enero/2020
+-- - --------------------------------
+
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `sp_letras_dev_sdpm`$$
+CREATE  PROCEDURE `sp_letras_dev_sdpm`()
+BEGIN
+
+DECLARE mFechaOperacion 	DATE DEFAULT CURDATE();
+
+DECLARE mToleranciaPagos 	DOUBLE(6,2) DEFAULT 2;
+DECLARE mClave				BIGINT(20) DEFAULT 0;
+DECLARE mCreditoId			BIGINT(20) DEFAULT 0;
+DECLARE mPeriodo			INT(4) DEFAULT 0;
+DECLARE mCapital	 		DOUBLE(18,2) DEFAULT 0;
+DECLARE mCapitalPagado	 	DOUBLE(18,2) DEFAULT 0;
+DECLARE mCapitalExigible 	DOUBLE(18,2) DEFAULT 0;
+DECLARE mInteresExigible 	DOUBLE(18,2) DEFAULT 0;
+DECLARE mDiasAtraso			INT(4) DEFAULT 0;
+DECLARE mTasaNormal			DOUBLE(18,2) DEFAULT 0;
+DECLARE mTasaMora			DOUBLE(18,2) DEFAULT 0;
+DECLARE mSaldoCredito		DOUBLE(18,2) DEFAULT 0;
+DECLARE mDivisorInt			INT(4) DEFAULT 0;
+DECLARE mExistentes			INT(4) DEFAULT 0;
+
+DECLARE mIntNormal			DOUBLE(18,2) DEFAULT 0;
+DECLARE mIntMora			DOUBLE(18,2) DEFAULT 0;
+
+DECLARE done INT DEFAULT FALSE;
+
+DECLARE cur1 CURSOR FOR SELECT 
+CPP.`plan_de_pago` 		AS `clave`,
+CPP.`clave_de_credito` 	AS `credito`,
+CPP.`numero_de_parcialidad`, CPP.`capital`,
+IF(MVTO.`evaluador`>0, MVTO.`capital_pagado`,0) 							AS `capital_pagado`,
+IF(MVTO.`evaluador`>0, (CPP.`capital`-MVTO.`capital_pagado`),CPP.`capital`) AS `capital_exigible`,
+IF(MVTO.`evaluador`>0, (CPP.`interes`-MVTO.`interes_pagado`),CPP.`interes`) AS `interes_exigible`,	
+setNoMenorCero(IF(MVTO.`evaluador`>0,
+DATEDIFF(MVTO.`fecha_pagado`, CPP.`fecha_de_pago`),
+DATEDIFF(PRM.`fecha_corte`, CPP.`fecha_de_pago`)
+)) AS `dias_vencidos`,
+CS.`tasa_interes`, CS.`tasa_moratorio`,PRM.`divisor_interes`,CS.`saldo_actual`
+FROM
+`creditos_plan_de_pagos` CPP 
+INNER JOIN (SELECT mFechaOperacion AS `fecha_corte`,getDivisorDeInteres() AS `divisor_interes`) PRM
+INNER JOIN `creditos_solicitud` CS ON CS.`numero_solicitud`=CPP.`clave_de_credito`
+LEFT JOIN
+(SELECT 
+	`docto_afectado`,
+	`periodo_socio`,
+	SUM(IF(`tipo_operacion`=120,`afectacion_real`,0)) AS `capital_pagado`,
+	SUM(IF(`tipo_operacion`=140,`afectacion_real`,0)) AS `interes_pagado`,
+	MAX(`fecha_operacion`) AS `fecha_pagado`,
+	1 AS `evaluador`
+FROM 
+`operaciones_mvtos`
+INNER JOIN (SELECT mFechaOperacion AS `fecha_corte`) PRM
+WHERE 
+
+(`tipo_operacion`=140 OR `tipo_operacion`=120)
+
+AND `fecha_afectacion`<=PRM.`fecha_corte`
+
+GROUP BY 
+    `docto_afectado`,`periodo_socio`
+) MVTO ON MVTO.`docto_afectado` = CPP.`clave_de_credito` AND MVTO.`periodo_socio` = CPP.`numero_de_parcialidad`;
+
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+OPEN cur1;
+
+read_loop: LOOP
+    FETCH cur1 INTO mClave,mCreditoId,mPeriodo,mCapital,mCapitalPagado,mCapitalExigible,mInteresExigible,mDiasAtraso,mTasaNormal,mTasaMora,mDivisorInt,mSaldoCredito;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+
+	
+	SET mIntNormal		= (mTasaNormal * 1 * mCapitalExigible) / mDivisorInt;
+	IF mDiasAtraso >= 1 THEN
+		SET mIntMora	= (mTasaMora * 1 * mCapitalExigible) / mDivisorInt;
+	END IF;
+	SET mExistentes		= (SELECT COUNT(*) FROM `creditos_letras_sdpm` WHERE `fecha`=mFechaOperacion AND `credito` = mCreditoId AND `periodo`=mPeriodo);
+	
+	IF mExistentes > 0 THEN
+		-- - Actualizar el registro
+		UPDATE `creditos_letras_sdpm` SET
+		`mora_devengado` = mIntMora,`normal_devengado` = mIntNormal,`saldo_letra` = mCapitalExigible,`dias_atraso` = mDiasAtraso
+		WHERE `credito` = mCreditoId AND `periodo` = mPeriodo AND `fecha` = mFechaOperacion;
+	ELSE
+		-- - Inserta el Registro
+		INSERT INTO `creditos_letras_sdpm` (`idcreditos_letras_sdpm`,`credito`,`periodo`,`fecha`,`mora_devengado`,`normal_devengado`,`saldo_letra`,`dias_atraso`)
+		VALUES (NULL, mCreditoId,mPeriodo,mFechaOperacion,mIntMora,mIntNormal,mCapitalExigible,mDiasAtraso);
+	END IF;
+
+  END LOOP;
+
+
+CLOSE cur1;
+  
+
+END$$
+
+DELIMITER ;
+
+
+-- --------------------------------
+-- - Guardar Reporte de Credito Diario
+-- - Enero/2020
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `sp_dev_reporte_credito`$$
+CREATE  PROCEDURE `sp_dev_reporte_credito`()
+BEGIN
+
+DECLARE mFechaOperacion 	DATE DEFAULT CURDATE();
+
+DELETE FROM `creditos_reporte_general` WHERE `fecha_reporte`= mFechaOperacion;
+
+INSERT INTO `creditos_reporte_general` (`sucursal`,`codigo`,`nombre`,`empresa`,`credito`,`producto`,`frecuencia`,`estado_actual`,`autorizacion`,`fecha_de_desembolso`,`forma_de_pagos`,`tasa_interes`,`tasa_moratorio`,`total_pagos`,
+`pago`,`ultimo_pago`,`monto_original`,`saldo_capital`,`oficial`,`monto_parcialidad`,`interes_pagado`,`mora_pagado`,`capital_pagado`,`financiador`,`interes_vencido_del_mes`,`capital_vigente`,`capital_vencido`,
+`interes_vencido`,`capital_del_mes`,`interes_del_mes`,`capital_pagado_del_mes`,`interes_pagado_del_mes`,`interes_moratorio`,`otros_exigible`,`dias_vencidos`,`fecha_reporte`)
+SELECT
+	`personas`.`sucursal` 							AS `sucursal`, 
+	`personas`.`codigo`,
+	`personas`.`nombre`,
+	`personas`.`iddependencia` 						AS `empresa`, 
+	`creditos_solicitud`.`numero_solicitud`                            	AS `credito`,
+	`creditos_solicitud`.`tipo_convenio` 					AS `producto`, 
+	`creditos_solicitud`.`periocidad_de_pago`           			AS `frecuencia`,
+	`creditos_solicitud`.`estatus_actual`					AS `estado_actual`,
+	`creditos_solicitud`.`tipo_autorizacion` 				AS `autorizacion`,
+	`creditos_solicitud`.`fecha_ministracion`     		    		AS `fecha_de_desembolso`,
+	`creditos_solicitud`.`tipo_de_pago`                              	AS `forma_de_pagos`,
+	ROUND((`creditos_solicitud`.`tasa_interes`*100),2)			AS `tasa_interes`,
+	ROUND((`creditos_solicitud`.`tasa_moratorio`*100),2)			AS `tasa_moratorio`,
+	`creditos_solicitud`.`pagos_autorizados`				AS `total_pagos`,	
+	OPS.`pago`								AS `pago`,
+	IF(OPS.`ultimo_pago` = NULL, NULL, OPS.`ultimo_pago`)   		AS `ultimo_pago`,
+	`creditos_solicitud`.`monto_autorizado`                            	AS `monto_original`,
+	(`creditos_solicitud`.`monto_autorizado` - OPS.`capital_pagado`) 	AS `saldo_capital`,
+	`creditos_solicitud`.`oficial_credito` 					AS `oficial`,
+	IF(`creditos_tipo_de_pago`.`con_capital`= 0, getMontoCuotaCred(`numero_solicitud`, (`ultimo_periodo_afectado`+1)),
+	`creditos_solicitud`.`monto_parcialidad`) 				AS `monto_parcialidad`,
+
+	OPS.`interes_pagado`,
+	OPS.`mora_pagado`,
+	OPS.`capital_pagado`,
+	CO.`persona` AS `financiador`,
+	
+	setNoMenorcero(SVC.`interes_del_mes` - SVC.`interes_pagado_del_mes`) 	AS `interes_vencido_del_mes`,
+	SVC.`capital_exigible` 							AS `capital_vigente`,	
+	SVC.`capital_vencido`,
+	SVC.`interes_vencido`,
+	SVC.`capital_del_mes`,
+	SVC.`interes_del_mes`,
+	SVC.`capital_pagado_del_mes`,
+	SVC.`interes_pagado_del_mes`,
+	LP.`interes_moratorio`,
+
+	LP.`otros_exigible`,
+
+	CAST(LP.`dias_vencidos` AS UNSIGNED) 					AS `dias_vencidos`,
+	mFechaOperacion											AS `fecha_reporte`
+FROM
+	`creditos_solicitud` `creditos_solicitud` 
+		INNER JOIN `oficiales` `oficiales` 
+		ON `creditos_solicitud`.`oficial_seguimiento` = `oficiales`.`id` 
+			INNER JOIN `creditos_tipoconvenio` `creditos_tipoconvenio` 
+			ON `creditos_solicitud`.`tipo_convenio` = `creditos_tipoconvenio`.
+			`idcreditos_tipoconvenio` 
+				INNER JOIN `creditos_tipo_de_autorizacion` 
+				`creditos_tipo_de_autorizacion` 
+				ON `creditos_solicitud`.`tipo_autorizacion` = 
+				`creditos_tipo_de_autorizacion`.
+				`idcreditos_tipo_de_autorizacion` 
+					INNER JOIN `personas` `personas` 
+					ON `creditos_solicitud`.`numero_socio` = `personas`.`codigo` 
+						INNER JOIN `creditos_estatus` `creditos_estatus` 
+						ON `creditos_solicitud`.`estatus_actual` = 
+						`creditos_estatus`.`idcreditos_estatus` 
+							INNER JOIN `creditos_tipo_de_pago` 
+							`creditos_tipo_de_pago` 
+							ON `creditos_solicitud`.`tipo_de_pago` = 
+							`creditos_tipo_de_pago`.`idcreditos_tipo_de_pago` 
+								INNER JOIN `creditos_periocidadpagos` 
+								`creditos_periocidadpagos` 
+								ON `creditos_solicitud`.`periocidad_de_pago` = 
+								`creditos_periocidadpagos`.
+								`idcreditos_periocidadpagos`
+		LEFT JOIN `creditos_montos` `creditos_montos`
+		ON `creditos_montos`.`clave_de_credito` = `creditos_solicitud`.`numero_solicitud`
+		LEFT JOIN 
+(SELECT DISTINCT  `creditos_datos_originacion`.`credito` AS `originacion_credito`,`personas_financiadores`.`alias` AS `originacion_financiador`,`personas_financiadores`.`persona` 
+FROM  `creditos_datos_originacion` INNER JOIN `personas_financiadores`  ON `creditos_datos_originacion`.`persona_titular` = `personas_financiadores`.`persona` ) CO
+ON CO.`originacion_credito` = `creditos_solicitud`.`numero_solicitud`
+LEFT JOIN 
+(SELECT  `docto_afectado` AS `credito_id`,
+MAX( IF(`operaciones_mvtos`.`tipo_operacion` = 120 OR `operaciones_mvtos`.`tipo_operacion` = 140,`operaciones_mvtos`.`fecha_afectacion`, NULL) )  AS `ultimo_pago`,
+MAX( IF(`operaciones_mvtos`.`tipo_operacion` = 120 OR `operaciones_mvtos`.`tipo_operacion` = 140,`operaciones_mvtos`.`periodo_socio`, 0) )  AS `pago`,
+SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 120,`operaciones_mvtos`.`afectacion_real`,0)) AS `capital_pagado`,
+SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 140,`operaciones_mvtos`.`afectacion_real`,0)) AS `interes_pagado`,
+SUM(IF(`operaciones_mvtos`.`tipo_operacion` = 141,`operaciones_mvtos`.`afectacion_real`,0)) AS `mora_pagado`
+FROM `operaciones_mvtos` 
+WHERE `operaciones_mvtos`.`fecha_operacion` <=mFechaOperacion
+GROUP BY `docto_afectado`) OPS ON OPS.`credito_id` = `creditos_solicitud`.`numero_solicitud`
+
+LEFT JOIN (SELECT CS.`numero_solicitud` AS `vclave_de_credito`,
+SUM(CPP.`capital_exigible`) AS `capital_exigible`,
+SUM(CPP.`interes_exigible`) AS `interes_exigible`,
+SUM(CPP.`otros_exigible`) 	AS `otros_exigible`,
+
+SUM(IF(CPP.`dias_vencidos`> 0,CPP.`capital_exigible`,0)) AS `capital_vencido`,
+SUM(IF(CPP.`dias_vencidos`> 0,CPP.`interes_exigible`,0)) AS `interes_vencido`,
+SUM(IF(CPP.`dias_vencidos`> 0, 
+((CPP.`capital_exigible` * CS.`tasa_moratorio`*CPP.`dias_vencidos`) / PRM.`divisor_interes`)
+,0)) AS `interes_moratorio`,
+
+SUM(
+IF(CPP.`del_mes` = 1, CPP.`capital`, 0)
+) AS `capital_del_mes`,
+SUM(
+IF(CPP.`del_mes` = 1, CPP.`capital_pagado`, 0)
+) AS `capital_pagado_del_mes`,
+SUM(
+IF(CPP.`del_mes` = 1, CPP.`interes`, 0)
+) AS `interes_del_mes`,
+SUM(
+IF(CPP.`del_mes` = 1, CPP.`interes_pagado`, 0)
+) AS `interes_pagado_del_mes`,
+MAX(CPP.`dias_vencidos`) AS `vdias_vencidos`,
+IF(MAX(CPP.`dias_vencidos`)>0,'Vencido', 'Vigente') AS `vnombre_estatus_actual`
+
+FROM `creditos_solicitud` CS 
+INNER JOIN (SELECT getDivisorDeInteres() AS `divisor_interes`) PRM
+LEFT JOIN (
+SELECT 
+CPP.`plan_de_pago` 		AS `clave`,
+CPP.`clave_de_credito` 		AS `credito`,
+CPP.`numero_de_parcialidad`,
+CPP.`capital`,
+	CPP.`interes`,
+	CPP.`fecha_de_pago`,
+	MVTO.`capital_pagado`,
+	MVTO.`interes_pagado`,
+	MVTO.`fecha_pagado`,
+	PRM.`fecha_corte` AS `fecha_corte`,
+	IF(MVTO.`evaluador`>0, 1,0) AS `tiene_pago`,
+
+	IF(MVTO.`evaluador`>0, (CPP.`capital`-MVTO.`capital_pagado`),CPP.`capital`) AS `capital_exigible`,
+	IF(MVTO.`evaluador`>0, (CPP.`interes`-MVTO.`interes_pagado`),CPP.`interes`) AS `interes_exigible`,	
+
+	IF(LIN.`otros_pagado`>0, (CPP.`otros`-LIN.`otros_pagado`),CPP.`otros`) AS `otros_exigible`,
+
+	setNoMenorCero(IF(MVTO.`evaluador`>0,
+	DATEDIFF(MVTO.`fecha_pagado`, CPP.`fecha_de_pago`),
+	DATEDIFF(PRM.`fecha_corte`, CPP.`fecha_de_pago`)
+	)) AS `dias_vencidos`,
+	
+	IF(DATE_FORMAT(CPP.`fecha_de_pago`, '%Y') = DATE_FORMAT(PRM.`fecha_corte`, '%Y'), 1, 0) AS `del_mes`
+
+	
+FROM
+`creditos_plan_de_pagos` CPP 
+INNER JOIN (SELECT mFechaOperacion AS `fecha_corte`) PRM
+LEFT JOIN
+(SELECT 
+	`docto_afectado`,
+	`periodo_socio`,
+	SUM(IF(`tipo_operacion`=120,`afectacion_real`,0)) AS `capital_pagado`,
+	SUM(IF(`tipo_operacion`=140,`afectacion_real`,0)) AS `interes_pagado`,
+	MAX(`fecha_operacion`) AS `fecha_pagado`,
+	1 AS `evaluador`
+FROM 
+`operaciones_mvtos`
+INNER JOIN (SELECT mFechaOperacion AS `fecha_corte`) PRM
+WHERE 
+
+(`tipo_operacion`=140 OR `tipo_operacion`=120)
+
+AND `fecha_afectacion`<=PRM.`fecha_corte`
+
+GROUP BY 
+    `docto_afectado`,`periodo_socio`
+    
+) MVTO ON MVTO.`docto_afectado` = CPP.`clave_de_credito` AND MVTO.`periodo_socio` = CPP.`numero_de_parcialidad`
+
+LEFT JOIN (
+SELECT `credito`,`parcialidad`,SUM(`otros`) AS `otros_pagado` FROM `listado_de_ingresos` WHERE `fecha`<=mFechaOperacion
+GROUP BY `credito`,`parcialidad`
+) LIN ON LIN.`credito` = CPP.`clave_de_credito` AND LIN.`parcialidad` = CPP.`numero_de_parcialidad`
+
+) CPP ON CPP.credito = CS.numero_solicitud
+GROUP BY CS.numero_solicitud) SVC ON SVC.`vclave_de_credito` = `creditos_solicitud`.`numero_solicitud`
+LEFT JOIN (
+SELECT LP.`credito`,SUM(LP.`interes_moratorio`) AS `interes_moratorio`,SUM(LP.`otros`) AS `otros_exigible`, MAX(IF(`capital_exigible`<=0,0,DATEDIFF(mFechaOperacion, LP.`fecha_de_pago`))
+) AS `dias_vencidos` FROM `letras` LP GROUP BY LP.`credito`
+) AS LP ON LP.`credito` = `creditos_solicitud`.`numero_solicitud`
+
+	WHERE (creditos_solicitud.numero_solicitud != 0)
+	 AND ( creditos_solicitud.fecha_ministracion <= mFechaOperacion) 
+	
+	AND (`creditos_solicitud`.`estatus_actual`!=50)	
+	AND (creditos_solicitud.estatus_actual != 98) 
+	AND (creditos_solicitud.estatus_actual != 99)
+
+	HAVING saldo_capital != 0
+
+	ORDER BY `creditos_solicitud`.`tipo_convenio`, `personas`.`nombre` ;
+
+END$$
+
+DELIMITER ;
+
+-- --------------------------------
+-- - Guardar Reporte de Letras Vencidas
+-- - Enero/2020
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `sp_dev_letras_vencidas`$$
+CREATE  PROCEDURE `sp_dev_letras_vencidas`()
+BEGIN
+
+DECLARE mFechaOperacion 	DATE DEFAULT CURDATE();
+
+DELETE FROM `creditos_reporte_letras_venc` WHERE `fecha_corte`= mFechaOperacion;
+
+INSERT INTO `creditos_reporte_letras_venc`(`persona`,`nombre`,`sucursal`,`credito`,`fecha_ministracion`,`pagos`,`periocidad`,`numero_con_atraso`,`fecha_de_atraso`,`dias`,
+`monto_ministrado`,`capital`,`interes`,`iva`,`otros`,`letra_original`,`moratorio`,`iva_moratorio`,`total`,`capital_vigente`,`total_vigente`,`gastos_de_cobranza`,`total_con_gastos`,
+`fecha_corte`)
+SELECT
+	`letras`.`persona`,
+	`personas`.`nombre`,
+	`personas`.`sucursal`,
+	`letras`.`credito`,
+
+	`creditos_solicitud`.`fecha_ministracion` 	AS `fecha_ministracion`,
+        
+	`creditos_solicitud`.`pagos_autorizados` 	AS `pagos`,
+        `creditos_solicitud`.`periocidad_de_pago` 	AS `periocidad`,
+	COUNT(`letras`.`parcialidad`)  	 		AS `numero_con_atraso`,
+	MIN(`letras`.`fecha_de_pago`) 			AS `fecha_de_atraso`,
+	MAX(`letras`.`dias`)          			AS `dias`,
+	
+	`creditos_solicitud`.`monto_autorizado` 	AS `monto_ministrado`,
+	
+	
+	SUM(`letras`.`capital`)       AS `capital`,
+	SUM(`letras`.`interes`)       AS `interes`,
+	SUM(`letras`.`iva`)           AS `iva`,
+	
+	
+	
+	SUM(`letras`.`otros`)         AS `otros`,
+	SUM(`letras`.`letra`)         AS `letra_original`,
+	
+	SUM(`letras`.`mora`)          AS `moratorio`,
+	SUM(`letras`.`iva_moratorio`) AS `iva_moratorio`,
+	
+	SUM(`capital`+`interes`+`iva`+`ahorro`+`otros`+`mora`+`iva_moratorio`) AS `total` 
+		,LV.capital_vigente, LV.total_vigente,
+	getMtoGtosCbzaMes(MIN(`letras`.`fecha_de_pago`)) AS `gastos_de_cobranza`,
+
+	(getMtoGtosCbzaMes(MIN(`letras`.`fecha_de_pago`)) + SUM(`capital`+`interes`+`iva`+`ahorro`+`otros`+`mora`+`iva_moratorio`)) AS `total_con_gastos`,
+	mFechaOperacion AS `fecha_corte`
+FROM
+	`letras` `letras` 
+		INNER JOIN `creditos_solicitud` `creditos_solicitud` 
+		ON `letras`.`credito` = `creditos_solicitud`.
+		`numero_solicitud` 
+			INNER JOIN `creditos_tipoconvenio` `creditos_tipoconvenio` 
+			ON `creditos_solicitud`.`tipo_convenio` = `creditos_tipoconvenio`.
+			`idcreditos_tipoconvenio` 
+				INNER JOIN `personas` `personas` 
+				ON `letras`.`persona` = `personas`.`codigo` 
+INNER JOIN `creditos_periocidadpagos` `creditos_periocidadpagos` ON `creditos_periocidadpagos`.`idcreditos_periocidadpagos` = `creditos_solicitud`.`periocidad_de_pago`
+		LEFT OUTER JOIN (
+		SELECT `letras`.`credito`,
+SUM(`capital`+`interes`+`iva`+`ahorro`+`otros`+`mora`+`iva_moratorio`) AS `total_vigente`,SUM(`capital`) AS `capital_vigente` FROM `letras`
+WHERE `letras`.`parcialidad` > 0 AND `letras`.`fecha_de_pago` > mFechaOperacion
+GROUP BY `letras`.`credito`
+		) LV ON LV.credito = `creditos_solicitud`.`numero_solicitud` 
+		WHERE `letras`.`parcialidad` > 0 AND `letras`.`fecha_de_pago` <= mFechaOperacion AND `letras`.`total_sin_otros`>0
+		AND `creditos_solicitud`.`estatus_actual`!= 50
+		
+		
+		 
+		 AND (creditos_solicitud.saldo_actual > 1)  AND (`creditos_tipoconvenio`.`omitir_seguimiento`=0) 
+		GROUP BY `letras`.`credito`
+
+HAVING total > 1
+	
+		ORDER BY MAX(`letras`.`dias`) DESC, `personas`.`nombre`;
+		
+
+END$$
+
+DELIMITER ;
+
+
+
+
+-- --------------------------------
+-- - Funcion que crear un RFC Valido
+-- - Febrero/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `setCrearRFC`$$
+
+CREATE FUNCTION `setCrearRFC`(ApPaterno VARCHAR(80), ApMaterno VARCHAR(80), Nombre VARCHAR(80), FechaNac DATE) RETURNS VARCHAR(13)
+BEGIN
+	DECLARE PrimeraParte VARCHAR(4) DEFAULT '';
+	DECLARE SegundaParte VARCHAR(6) DEFAULT '';
+	
+	DECLARE A1 VARCHAR(1) DEFAULT '';
+	DECLARE A2 VARCHAR(1) DEFAULT '';
+	DECLARE A3 VARCHAR(1) DEFAULT '';
+	DECLARE A4 VARCHAR(1) DEFAULT '';
+
+	SET A1 = SUBSTR(TRIM(ApPaterno),1,1);	
+	SET A2 = SUBSTR(regex_replace("[^aeiou]","", TRIM(ApPaterno)),1,1);
+	SET A3 = SUBSTR(TRIM(ApMaterno),1,1);
+	SET A4 = SUBSTR(TRIM(Nombre),1,1);
+
+	SET PrimeraParte = UPPER(CONCAT(A1,A2,A3,A4));
+	SET SegundaParte = (SELECT DATE_FORMAT(FechaNac, "%y%m%d"));
+	
+	IF PrimeraParte IN ("BUEI", "BUEY", "CACA", "CACO", "CAGA", "CAGO", "CAKA",
+"CAKO", "COGE", "COJA", "KOGE", "KOJO", "KAKA", "KULO", "MAME",
+"MAMO", "MEAR", "MEAS", "MEON", "MION", "COJE", "COJI", "COJO",
+"CULO", "FETO", "GUEY", "JOTO", "KACA", "KACO", "KAGA", "KAGO",
+"MOCO", "MULA", "PEDA", "PEDO", "PENE", "PUTA", "PUTO", "QULO",
+"RATA", "RUIN") THEN
+	SET PrimeraParte = CONCAT(SUBSTR(PrimeraParte,1,1),'X',SUBSTR(PrimeraParte,3,2));
+	END IF;
+	
+
+				
+	RETURN CONCAT(PrimeraParte,SegundaParte);
+
+    END$$
+
+DELIMITER ;
+
+-- --------------------------------
+-- - Funcion UCWORDS
+-- - Abril/2021
+-- - Credits: http://joezack.com/2008/10/20/mysql-capitalize-function/
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `UC_FIRST`$$
+
+CREATE FUNCTION `UC_FIRST`(input VARCHAR(255)) RETURNS VARCHAR(255)
+DETERMINISTIC
+BEGIN
+
+	DECLARE len INT;
+	DECLARE i INT;
+
+	SET len   = CHAR_LENGTH(input);
+	SET input = LOWER(input);
+	SET i = 0;
+
+	WHILE (i < len) DO
+		IF (MID(input,i,1) = ' ' OR i = 0) THEN
+			IF (i < len) THEN
+				SET input = CONCAT(
+					LEFT(input,i),
+					UPPER(MID(input,i + 1,1)),
+					RIGHT(input,len - i - 1)
+				);
+			END IF;
+		END IF;
+		SET i = i + 1;
+	END WHILE;
+
+	RETURN input;
+
+
+    END$$
+
+DELIMITER ;
+
+-- --------------------------------
+-- - Procedimiento Sanear Tabla de Localidades
+-- - Abril/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `sanear_tlocalidades`$$
+
+CREATE PROCEDURE `sanear_tlocalidades`()
+
+BEGIN
+
+DECLARE done 				INT DEFAULT FALSE;
+DECLARE vEstado				VARCHAR(255) DEFAULT '';
+DECLARE vEstado2			VARCHAR(255) DEFAULT '';
+DECLARE vLocalidad			VARCHAR(255) DEFAULT '';
+DECLARE vIDLocalidad			INT DEFAULT 0;
+
+DECLARE cur1 CURSOR FOR SELECT `catalogos_localidades`.`clave_unica`,LOWER(`catalogos_localidades`.`nombre_de_la_localidad`) AS `nombre_localidad`, LOWER(`general_estados`.`clave_en_sic`) AS `nombre_estado` FROM     `general_estados` INNER JOIN `catalogos_localidades`  ON `general_estados`.`clave_numerica` = `catalogos_localidades`.`clave_de_estado`;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+
+
+
+
+UPDATE `catalogos_localidades` SET `nombre_de_la_localidad`=UC_FIRST(`nombre_de_la_localidad`);
+
+UPDATE `catalogos_localidades` SET `nombre_de_la_localidad`=REPLACE(`nombre_de_la_localidad`, "Municipio", "(Municipio)");
+
+UPDATE `catalogos_localidades` SET `nombre_de_la_localidad`=REPLACE(`nombre_de_la_localidad`, "Localidad", "(Localidad)");
+
+-- Limpiar estados de Localidad
+
+
+
+
+OPEN cur1;
+
+read_loop: LOOP
+    FETCH cur1 INTO vIDLocalidad, vLocalidad, vEstado;
+    
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+
+    SET vEstado2 = UC_FIRST(vEstado);
+    
+    IF INSTR(vLocalidad, CONCAT(" de ", vEstado)) > 0 THEN
+	UPDATE `catalogos_localidades` SET `nombre_de_la_localidad`=REPLACE(`nombre_de_la_localidad`, CONCAT(" De ", vEstado2), "") WHERE `clave_unica`=vIDLocalidad;
+    ELSE 
+	IF INSTR(vLocalidad, CONCAT(" ", vEstado)) > 0 THEN
+	    UPDATE `catalogos_localidades` SET `nombre_de_la_localidad`=REPLACE(`nombre_de_la_localidad`, CONCAT(" ", vEstado2), " ") WHERE `clave_unica`=vIDLocalidad;
+	END IF;    
+    
+    END IF;
+    
+
+
+  END LOOP;
+
+
+
+UPDATE `catalogos_localidades` SET `nombre_de_la_localidad`=TRIM(`nombre_de_la_localidad`);
+
+UPDATE `socios_vivienda` SET `localidad` = (SELECT `nombre_de_la_localidad` FROM `catalogos_localidades` WHERE `clave_unica`=`socios_vivienda`.`clave_de_localidad`);
+
+
+END$$
+
+DELIMITER ;
+
+
+-- --------------------------------
+-- - Funcion que setea principal si es verdadero a otros falso
+-- - Mayo/2021
+-- - --------------------------------
+
+-- DELIMITER $$
+
+
+DROP TRIGGER IF EXISTS `socios_vivienda_BEFORE_UPDATE`;
+
+-- DROP TRIGGER IF EXISTS `socios_vivienda_BEFORE_UPDATE`$$
+
+-- CREATE DEFINER = CURRENT_USER TRIGGER `socios_vivienda_BEFORE_UPDATE` BEFORE UPDATE ON `socios_vivienda` FOR EACH ROW
+-- BEGIN
+
+-- IF OLD.principal != NEW.principal THEN
+
+-- 	IF (SELECT COUNT(*) FROM `socios_vivienda` WHERE `socio_numero`=NEW.socio_numero AND `idsocios_vivienda` != NEW.idsocios_vivienda) > 0 THEN
+--		UPDATE `socios_vivienda` SET principal = '0' WHERE `socio_numero`=NEW.socio_numero  AND `idsocios_vivienda` != NEW.idsocios_vivienda;
+-- 	END IF;
+
+-- END IF;
+
+
+
+-- END$$
+
+
+-- DELIMITER ;
+
+
+-- DELIMITER $$
+
+-- DROP TRIGGER IF EXISTS `socios_vivienda_BEFORE_INSERT`$$
+DROP TRIGGER IF EXISTS `socios_vivienda_BEFORE_INSERT`;
+
+-- CREATE DEFINER = CURRENT_USER TRIGGER `socios_vivienda_BEFORE_INSERT` BEFORE INSERT ON `socios_vivienda` FOR EACH ROW
+-- BEGIN
+
+-- IF NEW.principal IS NULL THEN
+--	SET NEW.principal = '1';
+-- END IF;
+
+-- IF NEW.principal = '1' THEN
+--	IF (SELECT COUNT(*) FROM `socios_vivienda` WHERE `socio_numero`=NEW.socio_numero AND `idsocios_vivienda` != NEW.idsocios_vivienda) > 0 THEN
+--		UPDATE `socios_vivienda` SET principal = '0' WHERE `socio_numero`=NEW.socio_numero  AND `idsocios_vivienda` != NEW.idsocios_vivienda;
+--	END IF;
+-- END IF;
+
+-- END$$
+
+
+-- DELIMITER ;
+
+
+
+
+
+
+-- --------------------------------
+-- - Funcion que setea id municipio por id de persona
+-- - y actualiza en catalogo externo si no existe
+-- - Aplica para Echale
+-- - Mayo/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `setIdMunicipioByIDPersona`$$
+
+CREATE FUNCTION `setIdMunicipioByIDPersona`(IDPersona BIGINT(20)) RETURNS INT(8)
+BEGIN
+	DECLARE IDMunicipio INT DEFAULT 0;
+	DECLARE IDEstado INT DEFAULT 0;
+	
+	DECLARE IDRelacionado INT DEFAULT 0;
+	DECLARE IDRelCNT INT DEFAULT 0;
+	DECLARE NombreMun VARCHAR(100);
+	DECLARE IDRelUQ INT DEFAULT 0;
+	
+	SET IDMunicipio = (SELECT `clave_de_municipio` FROM `socios_vivienda` WHERE `socio_numero`=IDPersona ORDER BY `principal` DESC LIMIT 0,1);
+	SET IDEstado = (SELECT `clave_de_entidadfederativa` FROM `socios_vivienda` WHERE `socio_numero`=IDPersona ORDER BY `principal` DESC LIMIT 0,1);
+	
+	IF IDMunicipio IS NOT NULL THEN
+		-- Crear Llave Unica
+		SET IDRelUQ = CAST(CONCAT(IDEstado, RIGHT(CONCAT('000',IDMunicipio),3)) AS UNSIGNED);
+		-- Validar si existe en xcatalogo
+		SET IDRelCNT = (SELECT COUNT(*) FROM `personas_xclasificacion` WHERE `idpersonas_xclasificacion`=IDRelUQ);
+		IF ISNULL(IDRelCNT) OR IDRelCNT<=0 THEN
+			-- Insertar nuevo registro municipio
+			SET NombreMun = (SELECT `nombre_del_municipio` FROM `general_municipios` WHERE `clave_unica`=IDRelUQ LIMIT 0,1);
+			INSERT INTO `personas_xclasificacion`(`idpersonas_xclasificacion`,`descripcion_xclasificacion`) VALUES (IDRelUQ,NombreMun);
+		END IF;
+	END IF;
+
+	RETURN IDRelUQ;
+
+    END$$
+
+DELIMITER ;
+
+
+
+
+
+-- --------------------------------
+-- - Procedimiento Crea Saldo por Operacion
+-- - Mayo/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `proc_rebuild_cta_sdos`$$
+
+CREATE PROCEDURE `proc_rebuild_cta_sdos`()
+
+BEGIN
+
+DECLARE done 				INT DEFAULT FALSE;
+DECLARE vIDMvto				INT DEFAULT 0;
+DECLARE vIDCta				BIGINT(20) DEFAULT 0;
+DECLARE vIDCta2				BIGINT(20) DEFAULT 0;
+DECLARE vMonto				DOUBLE(12,2) DEFAULT 0;
+DECLARE vSdo				DOUBLE(12,2) DEFAULT 0;
+DECLARE vAfecta				INT DEFAULT 0;
+
+
+DECLARE cur1 CURSOR FOR SELECT `idcaptacion_cuentas_sdos`,`cuenta`,`afectacion_real`,`afectacion` FROM `captacion_cuentas_sdos` ORDER BY `cuenta`,`fecha`,`recibo`;
+
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+
+
+OPEN cur1;
+
+read_loop: LOOP
+    FETCH cur1 INTO vIDMvto, vIDCta, vMonto, vAfecta;
+    
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+
+    IF vIDCta2 != vIDCta THEN
+	SET vSdo = 0;
+    END IF;
+    
+    SET vSdo = vSdo + (vMonto * vAfecta);
+
+    UPDATE `captacion_cuentas_sdos` SET `saldo_diario`=vSdo WHERE `idcaptacion_cuentas_sdos`=vIDMvto;
+
+
+    SET vIDCta2 = vIDCta;
+
+
+  END LOOP;
+
+
+END$$
+
+DELIMITER ;
+
+
+
+-- --------------------------------
+-- - Procedimiento Crea Saldo por Operacion - Por Cuenta
+-- - Mayo/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `proc_rebuild_cta_sdos_id`$$
+
+CREATE PROCEDURE `proc_rebuild_cta_sdos_id`(IDCuenta BIGINT(20))
+
+BEGIN
+
+DECLARE done 				INT DEFAULT FALSE;
+DECLARE vIDMvto				INT DEFAULT 0;
+DECLARE vIDCta				BIGINT(20) DEFAULT 0;
+DECLARE vIDCta2				BIGINT(20) DEFAULT 0;
+DECLARE vMonto				DOUBLE(12,2) DEFAULT 0;
+DECLARE vSdo				DOUBLE(12,2) DEFAULT 0;
+DECLARE vAfecta				INT DEFAULT 0;
+
+
+DECLARE cur1 CURSOR FOR SELECT `idcaptacion_cuentas_sdos`,`cuenta`,`afectacion_real`,`afectacion` FROM `captacion_cuentas_sdos` WHERE `cuenta`=IDCuenta ORDER BY `cuenta`,`fecha`,`recibo`;
+
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+
+
+OPEN cur1;
+
+read_loop: LOOP
+    FETCH cur1 INTO vIDMvto, vIDCta, vMonto, vAfecta;
+    
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+
+    IF vIDCta2 != vIDCta THEN
+	SET vSdo = 0;
+    END IF;
+    
+    SET vSdo = vSdo + (vMonto * vAfecta);
+
+    UPDATE `captacion_cuentas_sdos` SET `saldo_diario`=vSdo WHERE `idcaptacion_cuentas_sdos`=vIDMvto;
+
+
+    SET vIDCta2 = vIDCta;
+
+
+  END LOOP;
+
+
+END$$
+
+DELIMITER ;
+
+
+-- --------------------------------
+-- - Procedimiento Rebuild Sdo x Cred
+-- - Mayo/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `proc_rbd_cta_sdos_bycta`$$
+
+CREATE PROCEDURE `proc_rbd_cta_sdos_bycta`(IDCta BIGINT(20))
+BEGIN
+
+DELETE FROM `captacion_cuentas_sdos` WHERE `cuenta` = IDCta;
+
+INSERT INTO `captacion_cuentas_sdos`(`cuenta`,`fecha`,`recibo`,`afectacion_real`,`valor_afectacion`,`afectacion`)
+SELECT 
+									`operaciones_mvtos`.`docto_afectado` AS `cuenta`,
+									`operaciones_mvtos`.`fecha_operacion`  AS `fecha`,
+									`operaciones_mvtos`.`recibo_afectado` AS `recibo`,
+									
+									SUM((`operaciones_mvtos`.`afectacion_real` * BASES.`afectacion`)) AS `afectacion_real`,
+									1 AS `valor_afectacion`,
+									1 AS `afectacion`
+	FROM     `operaciones_mvtos` 
+	INNER JOIN `operaciones_tipos` ON `operaciones_tipos`.`idoperaciones_tipos` = `operaciones_mvtos`.`tipo_operacion` 
+	INNER JOIN (
+	SELECT   `eacp_config_bases_de_integracion_miembros`.`miembro`,
+			 `eacp_config_bases_de_integracion_miembros`.`afectacion`
+		FROM     `eacp_config_bases_de_integracion_miembros`
+		WHERE    ( `eacp_config_bases_de_integracion_miembros`.`codigo_de_base` = 3100 )
+	) BASES ON BASES.`miembro` = `operaciones_tipos`.`idoperaciones_tipos`
+WHERE `operaciones_mvtos`.`docto_afectado` = IDCta
+GROUP BY `operaciones_mvtos`.`recibo_afectado`					
+				ORDER BY
+					`operaciones_mvtos`.`docto_afectado`,
+					`operaciones_mvtos`.`fecha_afectacion`,
+					BASES.`afectacion` DESC;
+
+
+CALL proc_rebuild_cta_sdos_id(IDCta);
+
+
+END$$
+
+DELIMITER ;
+
+
+-- --------------------------------
+-- - Procedimiento Echale, estatus operativo
+-- - Mayo/2021
+-- - --------------------------------
+
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getCredEstadoOperativo`$$
+
+CREATE FUNCTION `getCredEstadoOperativo`(IDCredito BIGINT(20),Saldo DOUBLE(18,2)) RETURNS VARCHAR(20)
+BEGIN
+	DECLARE mEstadoOperativo VARCHAR(20) DEFAULT '';
+	DECLARE mReest INTEGER DEFAULT 0;
+	
+	IF Saldo <= 0.99 THEN
+		SET mEstadoOperativo = 'LIQUIDADO';
+		
+		SET mReest = (SELECT COUNT(*) FROM `creditos_datos_originacion` WHERE `clave_vinculada`=IDCredito AND `tipo_originacion`=4);
+		
+		IF mReest > 0 THEN
+			SET mEstadoOperativo = 'REESTRUCTURADO';
+		END IF;
+		
+	ELSE
+	
+		SET mEstadoOperativo = 'ACTIVO';
+	
+	END IF;
+	
+
+	RETURN mEstadoOperativo;
+
+    END$$
+
+DELIMITER ;
+
+
+-- --------------------------------
+-- - Procedimiento Perfil de Avisos por Producto
+-- - Junio/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `proc_crear_perfil_avisos_p`$$
+
+CREATE PROCEDURE `proc_crear_perfil_avisos_p`(IDProducto INT(4))
+
+BEGIN
+
+DECLARE done 				INT DEFAULT FALSE;
+
+DECLARE vIDPersona			BIGINT(20) DEFAULT 0;
+DECLARE vNumCreds			INT DEFAULT 0;
+DECLARE vSucursal			VARCHAR(20) DEFAULT 'matriz';
+
+DECLARE vExist1				INT DEFAULT 0;
+DECLARE vExist2				INT DEFAULT 0;
+DECLARE vHorarioI			VARCHAR(10) DEFAULT '';
+DECLARE vHorarioF			VARCHAR(10) DEFAULT '';
+
+
+
+DECLARE cur1 CURSOR FOR SELECT `creditos_solicitud`.`numero_socio` AS `persona`,`creditos_solicitud`.`sucursal`, COUNT( `creditos_solicitud`.`numero_solicitud` )  AS `creditos` FROM `creditos_solicitud` WHERE ( `creditos_solicitud`.`saldo_actual` >0.99 ) AND ( `creditos_solicitud`.`tipo_convenio` = IDProducto ) AND (`creditos_solicitud`.`estatus_actual` != 50) GROUP BY `persona`;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+OPEN cur1;
+
+read_loop: LOOP
+    FETCH cur1 INTO vIDPersona,vSucursal,vNumCreds;
+    
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+    SET vHorarioI = (SELECT CONCAT(`hora_de_inicio_de_operaciones`,':00') FROM `general_sucursales` WHERE `codigo_sucursal`=vSucursal LIMIT 0,1);
+    SET vHorarioF = (SELECT CONCAT(`hora_de_fin_de_operaciones`,':00') FROM `general_sucursales` WHERE `codigo_sucursal`=vSucursal LIMIT 0,1);
+    
+    SET vExist1 = (SELECT COUNT(*) FROM `personas_perfil_avisos` WHERE `persona`=vIDPersona AND `canal_de_envio`='sms');
+    SET vExist2 = (SELECT COUNT(*) FROM `personas_perfil_avisos` WHERE `persona`=vIDPersona AND `canal_de_envio`='email');
+    
+    IF vExist1 <=0 THEN
+	INSERT INTO `personas_perfil_avisos` (`persona`,`canal_de_envio`,`horario_inicial`,`horario_final`) VALUES (vIDPersona, 'sms', vHorarioI, vHorarioF);
+    END IF;
+
+    IF vExist2 <=0 THEN
+	INSERT INTO `personas_perfil_avisos` (`persona`,`canal_de_envio`,`horario_inicial`,`horario_final`) VALUES (vIDPersona, 'email', vHorarioI, vHorarioF);
+    END IF;
+    
+  END LOOP;
+
+
+END$$
+
+DELIMITER ;
 
