@@ -2574,7 +2574,7 @@ FROM `captacion_sdpm_historico`
 INNER JOIN (
 SELECT `recibo` AS `rrecibo`,MAX(`fecha`) AS `ffecha` FROM `captacion_sdpm_historico` GROUP BY `recibo`
 ) MSDPM ON MSDPM.`rrecibo` = `captacion_sdpm_historico`.`recibo`
-WHERE `numero_de_socio`=1004084
+WHERE `numero_de_socio`>0
 AND MSDPM.`ffecha` = `captacion_sdpm_historico`.`fecha`
 
 
