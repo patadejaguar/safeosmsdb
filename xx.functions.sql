@@ -5564,3 +5564,59 @@ END$$
 
 DELIMITER ;
 
+
+-- --------------------------------
+-- - Funcion que obtiene el titulo de los niveles por valor
+-- - Julio/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getNombrePermsByStr`$$
+
+CREATE FUNCTION `getNombrePermsByStr`(vPerms VARCHAR(200)) RETURNS VARCHAR(254)
+BEGIN
+	DECLARE vCleanPerms 	VARCHAR(200) DEFAULT '';
+	DECLARE vId 		VARCHAR(10) DEFAULT '';
+	DECLARE vNPerms 	VARCHAR(254) DEFAULT '';
+	DECLARE vTPerms		VARCHAR(20) DEFAULT '';
+	DECLARE vCount		INT(4) DEFAULT 1;
+	
+	SET vCleanPerms 	= REPLACE(vPerms, '@rw', '');
+
+	WHILE (LOCATE(',', vCleanPerms) > 0)
+	DO
+	    SET vId 		= SUBSTRING_INDEX(vCleanPerms,',',vCount);    
+	    
+	    SET vTPerms 	= (SELECT `nivel_alias` FROM `general_niveles` WHERE `idgeneral_niveles`=vId AND `estatus`=1 LIMIT 0,1);
+	    
+	    IF ISNULL(vTPerms) THEN 
+	    
+		SET vTPerms	= '';
+	    ELSE
+	    
+	    	IF vNPerms = '' THEN
+				SET vNPerms	= vTPerms;
+		    ELSE
+				SET vNPerms	= CONCAT(vNPerms, ', ', vTPerms);
+		    END IF;
+
+	    END IF;
+
+		SET vCleanPerms 	= SUBSTRING(vCleanPerms, LOCATE(',',vCleanPerms) + 1);
+		SET vCount		= vCount + 1;
+
+
+	    
+	END WHILE;
+
+
+
+	RETURN vNPerms;
+
+    END$$
+
+DELIMITER ;
+
+
+
