@@ -5619,4 +5619,149 @@ BEGIN
 DELIMITER ;
 
 
+-- --------------------------------
+-- - Procedimiento Perfil de Avisos por Persona
+-- - Agosto/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `proc_crear_perfilaviso_per`$$
+
+CREATE PROCEDURE `proc_crear_perfilaviso_per`(IDPersona BIGINT(20))
+
+BEGIN
+
+
+DECLARE vSucursal			VARCHAR(20) DEFAULT 'matriz';
+
+DECLARE vExist1				INT DEFAULT 0;
+DECLARE vExist2				INT DEFAULT 0;
+DECLARE vHorarioI			VARCHAR(10) DEFAULT '';
+DECLARE vHorarioF			VARCHAR(10) DEFAULT '';
+
+
+    SET vSucursal = (SELECT `sucursal` FROM `socios_general` WHERE `codigo`=IDPersona);
+    SET vHorarioI = (SELECT CONCAT(`hora_de_inicio_de_operaciones`,':00') FROM `general_sucursales` WHERE `codigo_sucursal`=vSucursal LIMIT 0,1);
+    SET vHorarioF = (SELECT CONCAT(`hora_de_fin_de_operaciones`,':00') FROM `general_sucursales` WHERE `codigo_sucursal`=vSucursal LIMIT 0,1);
+    
+    SET vExist1 = (SELECT COUNT(*) FROM `personas_perfil_avisos` WHERE `persona`=IDPersona AND `canal_de_envio`='sms');
+    SET vExist2 = (SELECT COUNT(*) FROM `personas_perfil_avisos` WHERE `persona`=IDPersona AND `canal_de_envio`='email');
+    
+    IF vExist1 <=0 THEN
+	INSERT INTO `personas_perfil_avisos` (`persona`,`canal_de_envio`,`horario_inicial`,`horario_final`) VALUES (IDPersona, 'sms', vHorarioI, vHorarioF);
+    END IF;
+
+    IF vExist2 <=0 THEN
+	INSERT INTO `personas_perfil_avisos` (`persona`,`canal_de_envio`,`horario_inicial`,`horario_final`) VALUES (IDPersona, 'email', vHorarioI, vHorarioF);
+    END IF;
+
+
+END$$
+
+DELIMITER ;
+
+
+
+-- --------------------------------
+-- - Procedimiento Fix capital exigible al final del dia
+-- - Agosto/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `proc_fix_credmon_capexig`$$
+
+CREATE PROCEDURE `proc_fix_credmon_capexig`()
+
+BEGIN
+
+
+
+UPDATE `creditos_montos` 
+INNER JOIN (
+
+SELECT
+	`creditos_letras_del_dia`.`credito`,
+	MIN(`creditos_letras_del_dia`.`parcialidad`) AS `letra_minima`,
+	MAX(`creditos_letras_del_dia`.`parcialidad`) AS `letra_maxima`,
+	COUNT(`creditos_letras_del_dia`.`indice`)  AS `letra_pends`,
+	MIN(`creditos_letras_del_dia`.`fecha_de_pago`) AS `fecha_primer_atraso`,
+	MAX(`creditos_letras_del_dia`.`fecha_de_pago`) AS `fecha_ultimo_atraso`,
+	SUM(`creditos_letras_del_dia`.`capital`)       AS `capital`,
+	SUM(`creditos_letras_del_dia`.`interes`)       AS `interes`,
+	SUM(`creditos_letras_del_dia`.`iva`)           AS `iva`,
+	SUM(`creditos_letras_del_dia`.`ahorro`)        AS `ahorro`,
+	SUM(`creditos_letras_del_dia`.`otros`)         AS `otros`,
+	SUM(`creditos_letras_del_dia`.`letra`)         AS `letra`,
+	SUM(`creditos_letras_del_dia`.`mora`)          AS `moratorio`,
+	SUM(`creditos_letras_del_dia`.`iva_moratorio`) AS `iva_moratorio`,
+	SUM(`creditos_letras_del_dia`.`dias`)          AS `dias`,
+	`creditos_letras_del_dia`.`tasa_de_mora`,
+	`creditos_letras_del_dia`.`tasa_de_interes` 
+FROM
+	`creditos_letras_del_dia` `creditos_letras_del_dia` 
+ -- WHERE (`creditos_letras_del_dia`.`credito` = 20114643) 
+GROUP BY
+	`creditos_letras_del_dia`.`credito`
+) tt ON tt.`credito` = `creditos_montos`.`clave_de_credito` 
+SET `capital_exigible` = tt.`capital`
+WHERE `capital_exigible` != tt.`capital`;
+
+
+
+
+END$$
+
+DELIMITER ;
+
+
+
+-- --------------------------------
+-- - Procedimiento Fix capital exigible por credito
+-- - Agosto/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `proc_fix_cm_ind_capexig`$$
+
+CREATE PROCEDURE `proc_fix_cm_ind_capexig`(IDCredito BIGINT(20))
+
+BEGIN
+
+UPDATE `creditos_montos` 
+INNER JOIN (
+
+SELECT
+	`creditos_letras_del_dia`.`credito`,
+	MIN(`creditos_letras_del_dia`.`parcialidad`) AS `letra_minima`,
+	MAX(`creditos_letras_del_dia`.`parcialidad`) AS `letra_maxima`,
+	COUNT(`creditos_letras_del_dia`.`indice`)  AS `letra_pends`,
+	MIN(`creditos_letras_del_dia`.`fecha_de_pago`) AS `fecha_primer_atraso`,
+	MAX(`creditos_letras_del_dia`.`fecha_de_pago`) AS `fecha_ultimo_atraso`,
+	SUM(`creditos_letras_del_dia`.`capital`)       AS `capital`,
+	SUM(`creditos_letras_del_dia`.`interes`)       AS `interes`,
+	SUM(`creditos_letras_del_dia`.`iva`)           AS `iva`,
+	SUM(`creditos_letras_del_dia`.`ahorro`)        AS `ahorro`,
+	SUM(`creditos_letras_del_dia`.`otros`)         AS `otros`,
+	SUM(`creditos_letras_del_dia`.`letra`)         AS `letra`,
+	SUM(`creditos_letras_del_dia`.`mora`)          AS `moratorio`,
+	SUM(`creditos_letras_del_dia`.`iva_moratorio`) AS `iva_moratorio`,
+	SUM(`creditos_letras_del_dia`.`dias`)          AS `dias`,
+	`creditos_letras_del_dia`.`tasa_de_mora`,
+	`creditos_letras_del_dia`.`tasa_de_interes` 
+FROM
+	`creditos_letras_del_dia` `creditos_letras_del_dia` 
+WHERE (`creditos_letras_del_dia`.`credito` = IDCredito) 
+GROUP BY
+	`creditos_letras_del_dia`.`credito`
+) tt ON tt.`credito` = `creditos_montos`.`clave_de_credito` 
+SET `capital_exigible` = tt.`capital`
+WHERE `capital_exigible` != tt.`capital`;
+
+
+END$$
+
+DELIMITER ;
 
