@@ -2402,12 +2402,14 @@ CREATE
     AS
 
 
-SELECT DISTINCT `captacion_cuentas`.`numero_cuenta` AS `documento`,
-         `captacion_cuentas`.`numero_socio` AS `persona`,
-         `captacion_cuentas`.`tipo_subproducto` AS `producto`,
-         `captacion_cuentas`.`saldo_cuenta` AS `saldo`,
-         300 AS `tipo`
-FROM     `captacion_cuentas`
+SELECT DISTINCT `captacion_cuentas`.`numero_cuenta` 			AS `documento`,
+         `captacion_cuentas`.`numero_socio` 					AS `persona`,
+         `captacion_cuentas`.`tipo_subproducto` 				AS `producto`,
+         `captacion_cuentas`.`saldo_cuenta` 					AS `saldo`,
+         300 													AS `tipo`,
+         `captacion_subproductos`.`descripcion_subproductos` 	AS `producto_nombre`
+FROM     `captacion_subproductos` 
+INNER JOIN `captacion_cuentas`  ON `captacion_subproductos`.`idcaptacion_subproductos` = `captacion_cuentas`.`tipo_subproducto` 
 
 UNION
 
@@ -2415,8 +2417,10 @@ SELECT DISTINCT `creditos_solicitud`.`numero_solicitud`,
          `creditos_solicitud`.`numero_socio`,
          `creditos_solicitud`.`tipo_convenio`,
          `creditos_solicitud`.`saldo_actual`,
-         200  AS `tipo`
-FROM     `creditos_solicitud`
+         200  AS `tipo`,
+         `creditos_tipoconvenio`.`descripcion_tipoconvenio` AS `producto_nombre`
+FROM     `creditos_tipoconvenio` 
+INNER JOIN `creditos_solicitud`  ON `creditos_tipoconvenio`.`idcreditos_tipoconvenio` = `creditos_solicitud`.`tipo_convenio` 
 
 
 ;$$
