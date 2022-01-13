@@ -2724,3 +2724,59 @@ GROUP BY `captacion_cuentas`.`numero_socio`
 DELIMITER ;
 
 
+-- - --------------------------------
+-- - Vista de telefonos por persona
+-- - Enero/2022
+-- - --------------------------------
+
+	
+DELIMITER $$
+
+DROP VIEW IF EXISTS `vw_personas_telefonos`$$
+-- DROP TABLE IF EXISTS `vw_captacion_ult_sdpm`$$
+
+CREATE
+    VIEW `vw_personas_telefonos` 
+    AS
+
+
+SELECT
+	`socios_vivienda`.`socio_numero`,
+	TRIM(`socios_vivienda`.`telefono_residencial`) AS 'telefono',
+	'fijo' AS `tipo`,
+	FALSE  AS `principal`
+	FROM
+	`socios_vivienda` `socios_vivienda`
+	WHERE
+	(`socios_vivienda`.`estado_actual`>0)
+	AND setNoMenorCero(CAST(`socios_vivienda`.`telefono_residencial` AS UNSIGNED))>0
+	UNION
+	SELECT
+	`socios_vivienda`.`socio_numero`,
+	TRIM(`socios_vivienda`.`telefono_movil`),
+	'sms',
+	FALSE
+	FROM
+	`socios_vivienda` `socios_vivienda`
+	WHERE
+	(`socios_vivienda`.`estado_actual`>0)
+	AND setNoMenorCero(CAST(`socios_vivienda`.`telefono_movil` AS UNSIGNED))>0
+	UNION
+	SELECT   `socios_general`.`codigo`,
+        TRIM(`socios_general`.`telefono_principal`),
+        'sms',
+        TRUE
+	FROM     `socios_general`
+	WHERE    setNoMenorCero(CAST(`socios_general`.`telefono_principal` AS UNSIGNED))>0
+	UNION
+	SELECT   `personas_contacto`.`persona_id`,
+         `personas_contacto`.`contacto`,
+         `personas_contacto`.`tipo_contacto`,
+         FALSE
+	FROM     `personas_contacto`
+	WHERE    ( `personas_contacto`.`tipo_contacto` = 'sms' ) 
+	AND ( `personas_contacto`.`estatus` = 1 )
+
+;$$
+
+DELIMITER ;
