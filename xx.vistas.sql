@@ -2637,7 +2637,8 @@ CDP.`suma_activo`,
 CDC.`cuentas_activas`,
 CDC.`cuentas_comerciales`,
 CDC.`suma_cuentas_activas`,
-CDC.`suma_cuentas_comerciales`
+CDC.`suma_cuentas_comerciales`,
+TOPT.`nombre_origen` AS `origen`
 
 	
 FROM     `socios_general` 
@@ -2717,6 +2718,19 @@ INNER JOIN `captacion_subproductos`  ON `captacion_subproductos`.`idcaptacion_su
 GROUP BY `captacion_cuentas`.`numero_socio`
 
 ) CDC ON CDC.`numero_socio` = `socios_general`.`codigo`
+
+LEFT OUTER JOIN 
+(
+SELECT   `personas_originacion`.`persona_id` AS `origen_persona`,
+         CTT.`nombre_origen`
+FROM     `personas_originacion`
+INNER JOIN (
+SELECT `clave` AS `origen_id`,
+`descripcion` AS `nombre_origen`
+FROM `sistema_catalogo` WHERE `tabla_virtual` = 'cat_personas_origen'
+) CTT ON CTT.`origen_id` = `personas_originacion`.`origen`
+
+) TOPT ON TOPT.`origen_persona` = `socios_general`.`codigo`
 
 
 )$$
