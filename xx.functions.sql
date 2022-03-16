@@ -5774,4 +5774,21 @@ DELIMITER ;
 
 
 
+-- -- 
+-- -- Get Clave Numerica de Municipio
+-- -- Marzo / 2022
+-- -- 
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getIdNumericoMunicipio`$$
+
+CREATE FUNCTION `getIdNumericoMunicipio`( IdEE VARCHAR(2), IdMU VARCHAR(6) ) RETURNS INTEGER(8)
+BEGIN
+DECLARE IDD INTEGER(8) DEFAULT '';
+	SET IDD = CAST(CONCAT(LPAD(IdEE,2,0), '', LPAD(IdMU,4,0)) AS UNSIGNED);
+	
+RETURN IDD;
+END$$
+
+DELIMITER ;
 
