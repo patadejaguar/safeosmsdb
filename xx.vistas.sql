@@ -2794,3 +2794,47 @@ SELECT
 ;$$
 
 DELIMITER ;
+
+
+
+
+
+
+
+
+
+
+
+
+-- - --------------------------------
+-- - Vista de Catalogo de Localidades
+-- - Marzo / 2020
+-- - --------------------------------
+
+	
+DELIMITER $$
+
+DROP VIEW IF EXISTS `vw_catalogos_localidades`$$
+DROP TABLE IF EXISTS `vw_catalogos_localidades`$$
+
+CREATE
+    VIEW `vw_catalogos_localidades` 
+    AS
+
+SELECT   `catalogos_localidades`.`clave_unica`,
+         `catalogos_localidades`.`clave_de_localidad`,
+         `catalogos_localidades`.`nombre_de_la_localidad`,
+         `general_estados`.`nombre` 			AS `nombre_entidad_federativa`,
+         `personas_domicilios_paises`.`nombre_oficial` 	AS `nombre_pais`,
+         getIdNumericoMunicipio(`catalogos_localidades`.`clave_de_estado`,
+         `catalogos_localidades`.`clave_de_municipio`) 	AS `municipio_clave_unico`
+         
+FROM     `general_estados` 
+INNER JOIN `catalogos_localidades`  ON `general_estados`.`clave_numerica` = `catalogos_localidades`.`clave_de_estado` 
+INNER JOIN `personas_domicilios_paises`  ON `personas_domicilios_paises`.`clave_de_control` = `catalogos_localidades`.`clave_de_pais` 
+
+
+;$$
+
+DELIMITER ;
+
