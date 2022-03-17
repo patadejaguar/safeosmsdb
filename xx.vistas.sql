@@ -2587,4 +2587,254 @@ AND MSDPM.`ffecha` = `captacion_sdpm_historico`.`fecha`
 DELIMITER ;
 
 
+-- - ---  Personas Alias Socios V2.0
+
+DELIMITER $$
+
+DROP VIEW IF EXISTS `vw_personas_v2`$$
+DROP TABLE IF EXISTS `vw_personas_v2`$$
+
+CREATE VIEW `vw_personas_v2` AS (
+
+SELECT
+TRIM(CONCAT(`socios_general`.`nombrecompleto`, ' ',`socios_general`.`apellidopaterno`, ' ',`socios_general`.`apellidomaterno`)) AS `nombre`,
+
+
+SAD.`nombre_corto` 								AS `dependencia`,
+SAD.`descripcion_dependencia` 					AS `nombre_dependencia`,
+SAD.`nombre_corto` 								AS `alias_dependencia`,
+
+SGN.`descripcion_genero` 						AS `genero`,
+STI.`descripcion_tipoingreso` 					AS `tipo_ingreso`,
+`socios_general`.`correo_electronico`			AS `correo_electronico`,
+`socios_general`.`telefono_principal` 			AS `telefono`,
+SFJ.`descripcion_figura_juridica` 				AS `figura_juridica`,
+`socios_general`.`sucursal` 					AS `sucursal`,
+
+TIMESTAMPDIFF(YEAR, 
+`socios_general`.`fechanacimiento`, CURDATE())	AS `edad`,
+
+PXC.`descripcion_xclasificacion`				AS `xclasificacion`,
+
+`socios_general`.`codigo` 						AS `codigo`,
+`socios_general`.`codigo` 						AS `clave_de_persona`,
+`socios_general`.`cajalocal` 					AS `numero_caja_local`,
+`socios_general`.`dependencia` 					AS `iddependencia`,
+`socios_general`.`grupo_solidario`  			AS `grupo`,
+	
+`socios_general`.`nombrecompleto`,
+`socios_general`.`apellidopaterno`,
+`socios_general`.`apellidomaterno`,
+
+CDP.`total_solicitados`,
+CDP.`solicitados`,
+CDP.`autorizados`,
+CDP.`rechazados`,
+CDP.`castigados`,
+CDP.`activos`,
+CDP.`suma_activo`,
+	
+CDC.`cuentas_activas`,
+CDC.`cuentas_comerciales`,
+CDC.`suma_cuentas_activas`,
+CDC.`suma_cuentas_comerciales`,
+TOPT.`nombre_origen` AS `origen`
+
+	
+FROM     `socios_general` 
+INNER JOIN `socios_aeconomica_dependencias` AS SAD  ON `socios_general`.`dependencia` = SAD.`idsocios_aeconomica_dependencias` 
+INNER JOIN `socios_tipoingreso` AS STI ON `socios_general`.`tipoingreso` = STI.`idsocios_tipoingreso` 
+INNER JOIN `socios_figura_juridica` AS SFJ  ON `socios_general`.`personalidad_juridica` = SFJ.`idsocios_figura_juridica` 
+INNER JOIN `socios_genero` AS SGN ON `socios_general`.`genero` = SGN.`idsocios_genero`
+LEFT OUTER JOIN `personas_xclasificacion` AS PXC ON PXC.`idpersonas_xclasificacion`=`socios_general`.`xclasificacion`
+LEFT OUTER JOIN (
+
+SELECT   `creditos_solicitud`.`numero_socio`,
+	COUNT(`creditos_solicitud`.`numero_solicitud`) 					AS `total_solicitados`,
+	SUM(IF(`creditos_solicitud`.`estatus_actual`=99,1,0)) 			AS `solicitados`,
+	SUM(IF(`creditos_solicitud`.`estatus_actual`=98,1,0)) 			AS `autorizados`,
+	SUM(IF(`creditos_solicitud`.`estatus_actual`=50 AND 
+	`creditos_solicitud`.`saldo_actual`<=0.1,1,0)) 					AS `rechazados`,
+	
+	SUM(IF(`creditos_solicitud`.`estatus_actual`=50 AND 
+	`creditos_solicitud`.`saldo_actual`> 0.1,1,0)) 					AS `castigados`,
+	
+	SUM(IF(`creditos_solicitud`.`estatus_actual`!=50 AND 
+	`creditos_solicitud`.`saldo_actual`>0.1,1,0)) 					AS `activos`,
+	
+	
+	SUM(`creditos_montos`.`saldo_plan` )  							AS `suma_plan_de_pagos`,
+	SUM(IF(`creditos_solicitud`.`estatus_actual`!= 50 
+	AND `creditos_solicitud`.`saldo_actual`>0.01,
+	`creditos_solicitud`.`monto_parcialidad`,0))					AS `suma_pago_periodico`,
+	
+	SUM(IF(`creditos_solicitud`.`estatus_actual`=50 AND 
+	`creditos_solicitud`.`saldo_actual`>0.1,`creditos_solicitud`.`saldo_actual`,0)) AS `suma_castigado`,
+	
+	SUM(IF(`creditos_solicitud`.`estatus_actual`!=50 AND 
+	`creditos_solicitud`.`saldo_actual`>0.1,`creditos_solicitud`.`saldo_actual`,0)) AS `suma_activo`,
+	
+	MAX(IF(`creditos_solicitud`.`estatus_actual`!= 50 
+	AND `creditos_solicitud`.`estatus_actual`!= 98,
+	`creditos_solicitud`.`monto_autorizado`,0))					AS `maximo_autorizado`
+
+	
+FROM     `creditos_solicitud` 
+INNER JOIN `creditos_montos`  ON `creditos_solicitud`.`numero_solicitud` = `creditos_montos`.`clave_de_credito` 
+
+LEFT JOIN (
+SELECT   DISTINCT `creditos_datos_originacion`.`credito` 	AS `originacion_credito`,
+         `creditos_datos_originacion`.`tipo_originacion`	AS `originacion_tipo`,
+         `creditos_datos_originacion`.`clave_vinculada`		AS `originacion_clave_vinculada`
+FROM     `creditos_datos_originacion`
+) DOR ON DOR.`originacion_credito` = `creditos_solicitud`.`numero_solicitud`
+
+GROUP BY `creditos_solicitud`.`numero_socio`
+
+) CDP ON CDP.`numero_socio` = `socios_general`.`codigo`
+
+
+LEFT OUTER JOIN (
+
+SELECT   `captacion_cuentas`.`numero_socio`,
+         `captacion_cuentas`.`numero_cuenta`,
+         
+	
+	COUNT(`captacion_cuentas`.`numero_cuenta`) 			AS `cuentas`,
+	SUM(IF(`captacion_cuentas`.`estatus_cuenta` =10,1,0)) 	AS `cuentas_activas`,
+	SUM(IF(`captacion_cuentas`.`estatus_cuenta` !=10,1,0)) 	AS `cuentas_inactivas`,
+        
+        SUM(`captacion_cuentas`.`saldo_cuenta`) 			AS `suma_cuentas`,
+        SUM(IF(`captacion_cuentas`.`estatus_cuenta` =10,`captacion_cuentas`.`saldo_cuenta`,0)) 		AS `suma_cuentas_activas`,
+        SUM(IF(`captacion_cuentas`.`estatus_cuenta` !=10,`captacion_cuentas`.`saldo_cuenta`,0)) 	AS `suma_cuentas_inactivas`,
+        
+        SUM(IF(`captacion_subproductos`.`es_comercial` =1,1,0)) 	AS `cuentas_comerciales`,
+        SUM(IF(`captacion_subproductos`.`es_comercial` =1,`captacion_cuentas`.`saldo_cuenta`,0)) 	AS `suma_cuentas_comerciales`
+
+        
+FROM     `captacion_cuentasorigen` 
+INNER JOIN `captacion_cuentas`  ON `captacion_cuentasorigen`.`idcaptacion_cuentasorigen` = `captacion_cuentas`.`origen_cuenta` 
+INNER JOIN `captacion_subproductos`  ON `captacion_subproductos`.`idcaptacion_subproductos` = `captacion_cuentas`.`tipo_subproducto` 
+GROUP BY `captacion_cuentas`.`numero_socio`
+
+) CDC ON CDC.`numero_socio` = `socios_general`.`codigo`
+
+LEFT OUTER JOIN 
+(
+SELECT   `personas_originacion`.`persona_id` AS `origen_persona`,
+         CTT.`nombre_origen`
+FROM     `personas_originacion`
+INNER JOIN (
+SELECT `clave` AS `origen_id`,
+`descripcion` AS `nombre_origen`
+FROM `sistema_catalogo` WHERE `tabla_virtual` = 'cat_personas_origen'
+) CTT ON CTT.`origen_id` = `personas_originacion`.`origen`
+
+) TOPT ON TOPT.`origen_persona` = `socios_general`.`codigo`
+
+
+)$$
+
+DELIMITER ;
+
+
+-- - --------------------------------
+-- - Vista de telefonos por persona
+-- - Enero/2022
+-- - --------------------------------
+
+	
+DELIMITER $$
+
+DROP VIEW IF EXISTS `vw_personas_telefonos`$$
+-- DROP TABLE IF EXISTS `vw_captacion_ult_sdpm`$$
+
+CREATE
+    VIEW `vw_personas_telefonos` 
+    AS
+
+
+SELECT
+	`socios_vivienda`.`socio_numero`,
+	TRIM(`socios_vivienda`.`telefono_residencial`) AS 'telefono',
+	'fijo' AS `tipo`,
+	FALSE  AS `principal`
+	FROM
+	`socios_vivienda` `socios_vivienda`
+	WHERE
+	(`socios_vivienda`.`estado_actual`>0)
+	AND setNoMenorCero(CAST(`socios_vivienda`.`telefono_residencial` AS UNSIGNED))>0
+	UNION
+	SELECT
+	`socios_vivienda`.`socio_numero`,
+	TRIM(`socios_vivienda`.`telefono_movil`),
+	'sms',
+	FALSE
+	FROM
+	`socios_vivienda` `socios_vivienda`
+	WHERE
+	(`socios_vivienda`.`estado_actual`>0)
+	AND setNoMenorCero(CAST(`socios_vivienda`.`telefono_movil` AS UNSIGNED))>0
+	UNION
+	SELECT   `socios_general`.`codigo`,
+        TRIM(`socios_general`.`telefono_principal`),
+        'sms',
+        TRUE
+	FROM     `socios_general`
+	WHERE    setNoMenorCero(CAST(`socios_general`.`telefono_principal` AS UNSIGNED))>0
+	UNION
+	SELECT   `personas_contacto`.`persona_id`,
+         `personas_contacto`.`contacto`,
+         `personas_contacto`.`tipo_contacto`,
+         FALSE
+	FROM     `personas_contacto`
+	WHERE    ( `personas_contacto`.`tipo_contacto` = 'sms' ) 
+	AND ( `personas_contacto`.`estatus` = 1 )
+
+;$$
+
+DELIMITER ;
+
+
+
+
+
+
+
+
+
+
+
+
+-- - --------------------------------
+-- - Vista de Catalogo de Localidades
+-- - Marzo / 2020
+-- - --------------------------------
+
+	
+DELIMITER $$
+
+DROP VIEW IF EXISTS `vw_catalogos_localidades`$$
+DROP TABLE IF EXISTS `vw_catalogos_localidades`$$
+
+CREATE
+    VIEW `vw_catalogos_localidades` 
+    AS
+
+SELECT   `catalogos_localidades`.`clave_unica`,
+         `catalogos_localidades`.`clave_de_localidad`,
+         `catalogos_localidades`.`nombre_de_la_localidad`,
+         `general_estados`.`nombre` 			AS `nombre_entidad_federativa`,
+         `personas_domicilios_paises`.`nombre_oficial` 	AS `nombre_pais`,
+         getIdNumericoMunicipio(`catalogos_localidades`.`clave_de_estado`,
+         `catalogos_localidades`.`clave_de_municipio`) 	AS `municipio_clave_unico`
+         
+FROM     `general_estados` 
+INNER JOIN `catalogos_localidades`  ON `general_estados`.`clave_numerica` = `catalogos_localidades`.`clave_de_estado` 
+INNER JOIN `personas_domicilios_paises`  ON `personas_domicilios_paises`.`clave_de_control` = `catalogos_localidades`.`clave_de_pais` 
+
+
+;$$
+
+DELIMITER ;
 

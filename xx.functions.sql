@@ -320,7 +320,7 @@ DELIMITER $$
 
 DROP FUNCTION IF EXISTS `setNoMenorCero`$$
 
-CREATE FUNCTION `setNoMenorCero`(mCantidad FLOAT(16,2) ) RETURNS FLOAT(16,2)
+CREATE FUNCTION `setNoMenorCero`(mCantidad DOUBLE(18,2) ) RETURNS DOUBLE(18,2)
 BEGIN
 	IF (mCantidad < 0) THEN
 		RETURN 0;
@@ -5761,6 +5761,33 @@ SET `capital_exigible` = tt.`capital`
 WHERE `capital_exigible` != tt.`capital`;
 
 
+END$$
+
+DELIMITER ;
+
+
+
+
+
+
+
+
+
+
+-- -- 
+-- -- Get Clave Numerica de Municipio
+-- -- Marzo / 2022
+-- -- 
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getIdNumericoMunicipio`$$
+
+CREATE FUNCTION `getIdNumericoMunicipio`( IdEE VARCHAR(2), IdMU VARCHAR(6) ) RETURNS INTEGER(8)
+BEGIN
+DECLARE IDD INTEGER(8) DEFAULT '';
+	SET IDD = CAST(CONCAT(LPAD(IdEE,2,0), '', LPAD(IdMU,4,0)) AS UNSIGNED);
+	
+RETURN IDD;
 END$$
 
 DELIMITER ;
