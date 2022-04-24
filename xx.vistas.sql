@@ -2638,8 +2638,8 @@ CDC.`cuentas_activas`,
 CDC.`cuentas_comerciales`,
 CDC.`suma_cuentas_activas`,
 CDC.`suma_cuentas_comerciales`,
-TOPT.`nombre_origen` AS `origen`
-
+TOPT.`nombre_origen` 							AS `origen`,
+CDP.`maximo_autorizado`
 	
 FROM     `socios_general` 
 INNER JOIN `socios_aeconomica_dependencias` AS SAD  ON `socios_general`.`dependencia` = SAD.`idsocios_aeconomica_dependencias` 
