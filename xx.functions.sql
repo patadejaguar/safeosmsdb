@@ -5792,3 +5792,33 @@ END$$
 
 DELIMITER ;
 
+-- --------------------------------
+-- - Funcion que remueve acentos
+-- - Mayo/2022
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `setRemoveAccents`$$
+
+CREATE FUNCTION `setRemoveAccents`(vVal VARCHAR(200)) RETURNS VARCHAR(254)
+BEGIN
+	DECLARE str 	VARCHAR(200) DEFAULT '';
+
+	SET str = REPLACE(vVal,'á','a');
+	SET str = REPLACE(str,'Á','A');
+	SET str = REPLACE(str,'é','e');
+	SET str = REPLACE(str,'É','E');
+	SET str = REPLACE(str,'í','i');
+	SET str = REPLACE(str,'Í','I');
+	SET str = REPLACE(str,'í','i');
+	SET str = REPLACE(str,'ó','o');
+	SET str = REPLACE(str,'Ó','O');
+	SET str = REPLACE(str,'ú','u');
+	SET str = REPLACE(str,'Ú','U');
+
+	RETURN str;
+
+    END$$
+
+DELIMITER ;
