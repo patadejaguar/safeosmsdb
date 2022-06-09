@@ -4329,10 +4329,15 @@ BEGIN
 	DECLARE Nombre VARCHAR(150) DEFAULT "";
 	DECLARE Correo VARCHAR(50) DEFAULT "";
 	DECLARE Telefono VARCHAR(20) DEFAULT "";
-
+	DECLARE IdPersona BIGINT(20) DEFAULT (SELECT `numero_socio` FROM `creditos_solicitud` WHERE `numero_solicitud`=IdCredito LIMIT 0,1);
+	
 	DECLARE cur1 CURSOR FOR SELECT `personas`.`nombre`, `personas`.`correo_electronico`, `personas`.`telefono`
 	FROM `socios_relaciones` INNER JOIN `socios_relacionestipos`  ON `socios_relaciones`.`tipo_relacion` = `socios_relacionestipos`.`idsocios_relacionestipos` 
-	INNER JOIN `personas`  ON `socios_relaciones`.`numero_socio` = `personas`.`codigo` WHERE ( `socios_relacionestipos`.`subclasificacion` = 5 ) AND ( `socios_relaciones`.`credito_relacionado` = IdCredito );
+	INNER JOIN `personas`  ON `socios_relaciones`.`numero_socio` = `personas`.`codigo` WHERE ( `socios_relacionestipos`.`subclasificacion` = 5 ) AND ( `socios_relaciones`.`credito_relacionado` = IdCredito )
+	UNION SELECT `personas`.`nombre`, `personas`.`correo_electronico`, `personas`.`telefono`
+	FROM `socios_relaciones` INNER JOIN `socios_relacionestipos`  ON `socios_relaciones`.`tipo_relacion` = `socios_relacionestipos`.`idsocios_relacionestipos` 
+	INNER JOIN `personas`  ON `socios_relaciones`.`numero_socio` = `personas`.`codigo` WHERE ( `socios_relacionestipos`.`subclasificacion` = 5 ) AND ( `socios_relaciones`.`credito_relacionado` = 1 ) AND ( `socios_relaciones`.`socio_relacionado` = IdPersona );
+	
 	
 	DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
 
@@ -4368,6 +4373,7 @@ RETURN mStr;
 END$$
 
 DELIMITER ;
+
 
 
 -- --------------------------------
