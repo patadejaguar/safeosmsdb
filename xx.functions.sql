@@ -1598,6 +1598,7 @@ SELECT
 		SUM(IF((`tipo_operacion` = 412  AND `fecha_afectacion` > PRM.`fecha_corte`),`afectacion_real`,0)) 								AS `ahorro_nopagado`,
 		SUM(IF(((`tipo_operacion` < 410 OR `tipo_operacion` > 413)  AND `fecha_afectacion` > PRM.`fecha_corte`) , `afectacion_real`,0)) AS `otros_nopagado`
 		,IF((`tipo_operacion` = 410 AND `periodo_socio`= (`creditos_solicitud`.`ultimo_periodo_afectado`+1)),  MMC.`cargos_cbza`,0) 	AS `gastos_de_cobranza`
+		,IF((`tipo_operacion` = 410 AND `periodo_socio`= (`creditos_solicitud`.`ultimo_periodo_afectado`+1)), ROUND(MMC.`cargos_cbza`*PRM.`tasa_iva`,2),0) 	AS `iva_gtos_cobranza`
 
 		FROM
 			`operaciones_mvtos` `operaciones_mvtos` 
@@ -3047,14 +3048,18 @@ INNER JOIN ( SELECT getTasaIVAGeneral() AS `tasa_iva`, getDivisorDeInteres() AS 
 WHERE (`eacp_config_bases_de_integracion_miembros`.`codigo_de_base` = 2601)
 AND `operaciones_mvtos`.`tipo_operacion` != 420 
 AND `operaciones_mvtos`.`tipo_operacion` != 431
-AND `creditos_solicitud`.`saldo_actual`  > 0
+AND `creditos_solicitud`.`saldo_actual`  > 0.09
 GROUP BY `operaciones_mvtos`.`periodo_socio`, `operaciones_mvtos`.`docto_afectado`
 ORDER BY `eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,`operaciones_mvtos`.`docto_afectado`
 ) ;
 
 ALTER TABLE `tmp_creds_prox_letras` ADD COLUMN `indice` INT(10) NOT NULL AUTO_INCREMENT AFTER `saldo_principal`, ADD PRIMARY KEY (`indice`);
 ALTER TABLE `tmp_creds_prox_letras` ADD INDEX `creditoletra` (`docto_afectado` ASC, `periodo_socio` ASC)  COMMENT '',ADD INDEX `idpersona` (`socio_afectado` ASC)  COMMENT '';
-ALTER TABLE `tmp_creds_prox_letras` CHANGE `letra` `letra` DOUBLE(19,2) NULL, CHANGE `interes_moratorio` `interes_moratorio` DOUBLE(19,2) NULL; 
+ALTER TABLE `tmp_creds_prox_letras` CHANGE `letra` `letra` DOUBLE(19,2) NULL, CHANGE `interes_moratorio` `interes_moratorio` DOUBLE(19,2) NULL;
+
+-- add jun/2022
+DELETE FROM `tmp_creds_prox_letras` WHERE `letra`<=0;
+
 END$$
 
 DELIMITER ;
@@ -4329,10 +4334,15 @@ BEGIN
 	DECLARE Nombre VARCHAR(150) DEFAULT "";
 	DECLARE Correo VARCHAR(50) DEFAULT "";
 	DECLARE Telefono VARCHAR(20) DEFAULT "";
-
+	DECLARE IdPersona BIGINT(20) DEFAULT (SELECT `numero_socio` FROM `creditos_solicitud` WHERE `numero_solicitud`=IdCredito LIMIT 0,1);
+	
 	DECLARE cur1 CURSOR FOR SELECT `personas`.`nombre`, `personas`.`correo_electronico`, `personas`.`telefono`
 	FROM `socios_relaciones` INNER JOIN `socios_relacionestipos`  ON `socios_relaciones`.`tipo_relacion` = `socios_relacionestipos`.`idsocios_relacionestipos` 
-	INNER JOIN `personas`  ON `socios_relaciones`.`numero_socio` = `personas`.`codigo` WHERE ( `socios_relacionestipos`.`subclasificacion` = 5 ) AND ( `socios_relaciones`.`credito_relacionado` = IdCredito );
+	INNER JOIN `personas`  ON `socios_relaciones`.`numero_socio` = `personas`.`codigo` WHERE ( `socios_relacionestipos`.`subclasificacion` = 5 ) AND ( `socios_relaciones`.`credito_relacionado` = IdCredito )
+	UNION SELECT `personas`.`nombre`, `personas`.`correo_electronico`, `personas`.`telefono`
+	FROM `socios_relaciones` INNER JOIN `socios_relacionestipos`  ON `socios_relaciones`.`tipo_relacion` = `socios_relacionestipos`.`idsocios_relacionestipos` 
+	INNER JOIN `personas`  ON `socios_relaciones`.`numero_socio` = `personas`.`codigo` WHERE ( `socios_relacionestipos`.`subclasificacion` = 5 ) AND ( `socios_relaciones`.`credito_relacionado` = 1 ) AND ( `socios_relaciones`.`socio_relacionado` = IdPersona );
+	
 	
 	DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
 
@@ -4368,6 +4378,7 @@ RETURN mStr;
 END$$
 
 DELIMITER ;
+
 
 
 -- --------------------------------
@@ -5822,3 +5833,35 @@ BEGIN
     END$$
 
 DELIMITER ;
+
+
+
+-- --------------------------------
+-- - Funcion devuelve los gastos de cobranza por mes, desde mes
+-- - Julio/2022
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getMtoGtosCbzaMesDesdeF`$$
+
+CREATE FUNCTION `getMtoGtosCbzaMesDesdeF`(FechaVcto DATE, FechaCorte DATE) RETURNS DOUBLE(12,2)
+BEGIN
+	DECLARE NumMeses INT(4) DEFAULT 0;
+	DECLARE MtoGtos DOUBLE(12,2) DEFAULT 0;
+	SET NumMeses = ( SELECT TIMESTAMPDIFF(MONTH, FechaVcto, FechaCorte) );
+	
+	 
+	IF ISNULL(NumMeses) THEN
+		SET NumMeses = 0;
+	END IF;
+	
+	SET MtoGtos = 300 * NumMeses;
+	
+	RETURN MtoGtos;
+    END$$
+
+DELIMITER ;
+
+
+

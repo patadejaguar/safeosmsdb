@@ -665,17 +665,23 @@ DELIMITER $$
 DROP VIEW IF EXISTS `creditos_parcialidades`$$
 DROP TABLE IF EXISTS `creditos_parcialidades`$$
 
-CREATE VIEW `creditos_parcialidades` AS (select  `operaciones_mvtos`.`socio_afectado` AS `socio`,
-`operaciones_mvtos`.`docto_afectado` AS `credito`,`operaciones_mvtos`.`periodo_socio` AS `parcialidad`,
-max(`operaciones_mvtos`.`fecha_afectacion`) AS `fecha_de_pago`,
-sum((`operaciones_mvtos`.`afectacion_real` * `eacp_config_bases_de_integracion_miembros`.`afectacion`)) AS `monto` 
-from (`eacp_config_bases_de_integracion_miembros` join `operaciones_mvtos` on((`eacp_config_bases_de_integracion_miembros`.`miembro` = `operaciones_mvtos`.`tipo_operacion`))) where ((`eacp_config_bases_de_integracion_miembros`.`codigo_de_base` = 2601) 
-and (`operaciones_mvtos`.`afectacion_real` > 0)) 
-group by `eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,
-`operaciones_mvtos`.`socio_afectado`,`operaciones_mvtos`.`docto_afectado`,
-`operaciones_mvtos`.`periodo_socio` order by `eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,
-`operaciones_mvtos`.`socio_afectado`,`operaciones_mvtos`.`docto_afectado`,
-`operaciones_mvtos`.`periodo_socio`)$$
+CREATE VIEW `creditos_parcialidades` AS (
+	SELECT  `operaciones_mvtos`.`socio_afectado` 					AS `socio`,
+	`operaciones_mvtos`.`docto_afectado` 							AS `credito`,
+	`operaciones_mvtos`.`periodo_socio` 							AS `parcialidad`,
+	MAX(`operaciones_mvtos`.`fecha_afectacion`) 					AS `fecha_de_pago`,
+	ROUND(SUM((`operaciones_mvtos`.`afectacion_real` * 
+	`eacp_config_bases_de_integracion_miembros`.`afectacion`)),2) 	AS `monto` 
+	FROM `eacp_config_bases_de_integracion_miembros` 
+		JOIN `operaciones_mvtos` ON `eacp_config_bases_de_integracion_miembros`.`miembro` = `operaciones_mvtos`.`tipo_operacion`
+	WHERE (`eacp_config_bases_de_integracion_miembros`.`codigo_de_base` = 2601) AND (`operaciones_mvtos`.`afectacion_real` > 0)
+	GROUP BY `eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,
+	`operaciones_mvtos`.`socio_afectado`,`operaciones_mvtos`.`docto_afectado`,
+	`operaciones_mvtos`.`periodo_socio` 
+	ORDER BY `eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,
+	`operaciones_mvtos`.`socio_afectado`,`operaciones_mvtos`.`docto_afectado`,
+	`operaciones_mvtos`.`periodo_socio`)
+$$
 
 DELIMITER ;
 -- -- Interes Devengado, tabla Temporal
@@ -1063,6 +1069,7 @@ SELECT
 		SUM(IF((`tipo_operacion` = 412  AND `fecha_afectacion` > PRM.`fecha_corte`),`afectacion_real`,0)) 								AS `ahorro_nopagado`,
 		SUM(IF(((`tipo_operacion` < 410 OR `tipo_operacion` > 413)  AND `fecha_afectacion` > PRM.`fecha_corte`) , `afectacion_real`,0)) AS `otros_nopagado`
 		,IF((`tipo_operacion` = 410 AND `periodo_socio`= (`creditos_solicitud`.`ultimo_periodo_afectado`+1)),  MMC.`cargos_cbza`,0) 	AS `gastos_de_cobranza`
+		,IF((`tipo_operacion` = 410 AND `periodo_socio`= (`creditos_solicitud`.`ultimo_periodo_afectado`+1)), ROUND(MMC.`cargos_cbza`*PRM.`tasa_iva`,2),0) 	AS `iva_gtos_cobranza`
 
 		FROM
 			`operaciones_mvtos` `operaciones_mvtos` 
@@ -1177,7 +1184,8 @@ SELECT
 		SUM(IF((`tipo_operacion` = 412  AND `fecha_afectacion` > PRM.`fecha_corte`),`afectacion_real`,0)) 								AS `ahorro_nopagado`,
 		SUM(IF(((`tipo_operacion` < 410 OR `tipo_operacion` > 413)  AND `fecha_afectacion` > PRM.`fecha_corte`) , `afectacion_real`,0)) AS `otros_nopagado`
 		,IF((`tipo_operacion` = 410 AND `periodo_socio`= (`creditos_solicitud`.`ultimo_periodo_afectado`+1)),  MMC.`cargos_cbza`,0) 	AS `gastos_de_cobranza`
-
+		,IF((`tipo_operacion` = 410 AND `periodo_socio`= (`creditos_solicitud`.`ultimo_periodo_afectado`+1)), ROUND(MMC.`cargos_cbza`*PRM.`tasa_iva`,2),0) 	AS `iva_gtos_cobranza`
+		
 		FROM
 			`operaciones_mvtos` `operaciones_mvtos` 
 				INNER JOIN `creditos_solicitud` `creditos_solicitud` 
