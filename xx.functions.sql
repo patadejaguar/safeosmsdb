@@ -5839,6 +5839,7 @@ DELIMITER ;
 -- --------------------------------
 -- - Funcion devuelve los gastos de cobranza por mes, desde mes
 -- - Julio/2022
+-- - TODO: Mejorar esta funcion
 -- - --------------------------------
 
 DELIMITER $$
@@ -5863,5 +5864,95 @@ BEGIN
 
 DELIMITER ;
 
+
+-- --------------------------------
+-- - Funcion devuelve si existe el permiso en el campo por Nivel de Usuario
+-- - Julio/2022
+-- - --------------------------------
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getExistePermisoInStr`$$
+
+CREATE FUNCTION `getExistePermisoInStr`(UserNivel INT, StrPermisos VARCHAR(255)) RETURNS BOOL
+BEGIN
+	DECLARE SiExiste BOOL DEFAULT FALSE;
+	DECLARE StrPerm VARCHAR(6) DEFAULT '';
+	
+	SET StrPerm = CONCAT(UserNivel, "@rw");
+	
+	IF FIND_IN_SET(StrPerm, StrPermisos) > 0 THEN
+		SET SiExiste = TRUE;
+	END IF;
+	
+	RETURN SiExiste;
+	
+	
+    END$$
+
+DELIMITER ;
+
+
+-- --------------------------------
+-- - Funcion devuelve si existe el permiso en el campo por Clave de Usuario, por Tipo de Sistema
+-- - Julio/2022
+-- - --------------------------------
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getExistePermByUserIdTS`$$
+
+CREATE FUNCTION `getExistePermByUserIdTS`(UserId INT, StrPermisos VARCHAR(255)) RETURNS BOOL
+BEGIN
+	DECLARE UsrTipoSistema INT DEFAULT 0;
+	DECLARE SiExiste BOOL DEFAULT FALSE;
+	
+	SET UsrTipoSistema = (SELECT `general_niveles`.`tipo_sistema` FROM `general_niveles` INNER JOIN `t_03f996214fba4a1d05a68b18fece8e71`  ON `general_niveles`.`idgeneral_niveles` = `t_03f996214fba4a1d05a68b18fece8e71`.`f_f2cd801e90b78ef4dc673a4659c1482d` WHERE ( `t_03f996214fba4a1d05a68b18fece8e71`.`idusuarios` = UserId ) LIMIT 0,1);
+	SET SiExiste = getExistePermisoInStr(UserId, StrPermisos);
+
+	RETURN SiExiste;
+	
+	
+    END$$
+
+DELIMITER ;
+
+-- --------------------------------
+-- - Funcion devuelve si existe el permiso en el campo por Clave de Usuario, por Tipo de Usuario
+-- - Julio/2022
+-- - --------------------------------
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getExistePermByUserIdTU`$$
+
+CREATE FUNCTION `getExistePermByUserIdTU`(UserId INT, StrPermisos VARCHAR(255)) RETURNS BOOL
+BEGIN
+	DECLARE UsrTipoSistema INT DEFAULT 0;
+	DECLARE SiExiste BOOL DEFAULT FALSE;
+	
+	SET UsrTipoSistema = (SELECT `f_f2cd801e90b78ef4dc673a4659c1482d` FROM `t_03f996214fba4a1d05a68b18fece8e71` WHERE (`idusuarios` = UserId ) LIMIT 0,1);
+	SET SiExiste = getExistePermisoInStr(UserId, StrPermisos);
+
+	RETURN SiExiste;
+	
+	
+    END$$
+
+DELIMITER ;
+
+DELIMITER $$
+
+-- --------------------------------
+-- - Funcion devuelve La fecha en un formato dateTime
+-- - Julio/2022
+-- - --------------------------------
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getFechaTiempoMXByInt`$$
+
+CREATE FUNCTION `getFechaTiempoMXByInt`(mFecha BIGINT) RETURNS VARCHAR(25)
+BEGIN
+	RETURN DATE_FORMAT(FROM_UNIXTIME(mFecha), "%d/%b/%y %H:%i %p");
+    END$$
+
+DELIMITER ;
 
 
