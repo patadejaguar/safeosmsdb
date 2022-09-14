@@ -745,6 +745,7 @@ ORDER BY `eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,`operacion
 DELIMITER ;
 -- --------------------------------------- Listado de Ingresos
 -- TODO: Modificar esta seccion
+-- - 2022-sept se cambia a call del proc de datos bancarios.
 DELIMITER $$
 DROP PROCEDURE IF EXISTS `proc_listado_de_ingresos`$$
 
@@ -753,17 +754,7 @@ BEGIN
 
 UPDATE `operaciones_recibos` SET persona_asociada = getEmpresaPorDefecto() WHERE persona_asociada < getEmpresaPorDefecto();
 
-DROP TABLE IF EXISTS `tmp_recibos_datos_bancarios`;
-
-CREATE TABLE `tmp_recibos_datos_bancarios` AS SELECT
-  `bancos_operaciones`.`recibo_relacionado` AS `recibo`,
-  COUNT(`bancos_operaciones`.`idcontrol`)   AS `operaciones`,
-  MAX(`bancos_operaciones`.`cuenta_bancaria`) AS `banco`,
-  MAX(`bancos_operaciones`.`fecha_expedicion`) AS `fecha`,
-  SUM(`bancos_operaciones`.`monto_real`)    AS `monto`
-FROM `bancos_operaciones`
-GROUP BY `bancos_operaciones`.`recibo_relacionado`;
-ALTER TABLE `tmp_recibos_datos_bancarios` ADD INDEX `indexm` (`recibo` ASC, `banco` ASC);
+CALL `proc_recs_datos_bancarios`();
 
 -- DROP VIEW IF EXISTS `listado_de_ingresos`;
 DROP TABLE IF EXISTS `listado_de_ingresos`;
@@ -3065,14 +3056,16 @@ END$$
 DELIMITER ;
 
 
-
--- -- Letras de recibos bancarios .- Actualizado Agosto/2016
--- -- 
+-- -- ---------------------------------------------------------
+-- -- Letras de recibos bancarios .- Actualizado Sept/2022
+-- -- ---------------------------------------------------------
 DELIMITER $$
 DROP PROCEDURE IF EXISTS `proc_recs_datos_bancarios`$$
 
 CREATE PROCEDURE `proc_recs_datos_bancarios`()
 BEGIN
+
+DECLARE vModCajaAct BOOLEAN DEFAULT FALSE;
 
 DROP TABLE IF EXISTS `tmp_recibos_datos_bancarios`;
 
@@ -3087,6 +3080,20 @@ GROUP BY `bancos_operaciones`.`recibo_relacionado`
 ) ;
 
 ALTER TABLE `tmp_recibos_datos_bancarios` ADD INDEX `indexm` (`recibo` ASC, `banco` ASC);
+
+-- valida si el modulo de caja esta activo, si no, inserta desde los datos del recibo en su misma tabla
+
+SET vModCajaAct = getEsModActivo("caja");
+
+IF vModCajaAct = FALSE THEN
+
+INSERT INTO `tmp_recibos_datos_bancarios`(`recibo`,`operaciones`,`banco`,`fecha`,`monto`)
+(SELECT `idoperaciones_recibos`,1,`cuenta_bancaria`,DATE(`fecha_caja`),`total_operacion` FROM `operaciones_recibos`
+LEFT OUTER JOIN `tmp_recibos_datos_bancarios` TTDB ON TTDB.`recibo`= `idoperaciones_recibos` WHERE TTDB.`operaciones` IS NULL);
+
+END IF;
+
+
 END$$
 
 DELIMITER ;
@@ -5952,6 +5959,57 @@ CREATE FUNCTION `getFechaTiempoMXByInt`(mFecha BIGINT) RETURNS VARCHAR(25)
 BEGIN
 	RETURN DATE_FORMAT(FROM_UNIXTIME(mFecha), "%d/%b/%y %H:%i %p");
     END$$
+
+DELIMITER ;
+
+
+-- - --------------------------------
+-- - Funcion que devuelve un parametro del sistema
+-- - Oct/2022
+-- - --------------------------------
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getParametroDeSistema`$$
+
+CREATE FUNCTION `getParametroDeSistema`( vNombre VARCHAR(80) ) RETURNS VARCHAR(200)
+BEGIN
+DECLARE mVal VARCHAR(200) DEFAULT '';
+	SET mVal = (SELECT `valor_del_parametro` FROM `entidad_configuracion` WHERE `nombre_del_parametro`=vNombre LIMIT 0,1); 
+	
+	IF ISNULL(mVal) THEN
+		SET mVal = '';
+	END IF;
+
+	RETURN mVal;
+END$$
+
+DELIMITER ;
+
+-- - --------------------------------
+-- - Funcion que devuelve si un modulo esta activo
+-- - Oct/2022
+-- - TODO: Faltan modulos
+-- - --------------------------------
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getEsModActivo`$$
+
+CREATE FUNCTION `getEsModActivo`( vNombre VARCHAR(25) ) RETURNS BOOLEAN
+BEGIN
+DECLARE mVal BOOLEAN DEFAULT TRUE;
+DECLARE nVal VARCHAR(60) DEFAULT '';
+
+	IF vNombre = "caja"  THEN
+		SET nVal = LOWER(getParametroDeSistema("modulo_de_caja_activado"));
+	END IF;
+	
+	IF nVal = "no" OR nVal = "0" OR nVal = "false" THEN
+		SET mVal = FALSE;
+	END IF;
+	
+
+	RETURN mVal;
+END$$
 
 DELIMITER ;
 
