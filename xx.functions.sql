@@ -743,6 +743,8 @@ ORDER BY `eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,`operacion
     END$$
 
 DELIMITER ;
+
+
 -- --------------------------------------- Listado de Ingresos
 -- TODO: Modificar esta seccion
 -- - 2022-sept se cambia a call del proc de datos bancarios.
@@ -783,9 +785,13 @@ SELECT
 	`creditos_solicitud`.`periocidad_de_pago`      AS `periocidad`,
 `tmp_recibos_datos_bancarios`.`banco`,
 
-`creditos_solicitud`.`oficial_seguimiento` AS `oficial_de_seguimiento`,
-`creditos_solicitud`.`oficial_credito`     AS `oficial_de_credito`,
-`operaciones_recibos`.`persona_asociada`            AS `persona_asociada`
+`creditos_solicitud`.`oficial_seguimiento` 		AS `oficial_de_seguimiento`,
+`creditos_solicitud`.`oficial_credito`     		AS `oficial_de_credito`,
+`operaciones_recibos`.`persona_asociada`		AS `persona_asociada`,
+
+`operaciones_recibos`.`recibo_fiscal` 			AS `folio`,
+`operaciones_recibos`.`cheque_afectador` 		AS `referencia`,
+DATE(`operaciones_recibos`.`fecha_caja`)		AS `fecha_de_caja`
 
 FROM 
 
