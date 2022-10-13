@@ -780,15 +780,15 @@ DROP TABLE IF EXISTS `creditos_sdpm_acumulado`$$
 
 CREATE  VIEW `creditos_sdpm_acumulado` AS (
 SELECT
-  `creditos_sdpm_historico`.`numero_de_socio`   AS `socio`,
-  `creditos_sdpm_historico`.`numero_de_credito` AS `credito`,
-  MAX(`creditos_sdpm_historico`.`fecha_actual`) AS `fechaActual`,
-  MAX(`creditos_sdpm_historico`.`fecha_anterior`) AS `fechaAnterior`,
-  SUM(`creditos_sdpm_historico`.`dias_transcurridos`) AS `dias`,
-  SUM(`creditos_sdpm_historico`.`monto_calculado`) AS `monto`,
-  AVG(`creditos_sdpm_historico`.`saldo`)        AS `saldo`,
-  SUM(`creditos_sdpm_historico`.`interes_normal`) AS `interesesNormales`,
-  SUM(`creditos_sdpm_historico`.`interes_moratorio`) AS `InteresesMoratorios`
+  `creditos_sdpm_historico`.`numero_de_socio`					AS `socio`,
+  `creditos_sdpm_historico`.`numero_de_credito`					AS `credito`,
+  MAX(`creditos_sdpm_historico`.`fecha_actual`)					AS `fechaActual`,
+  MAX(`creditos_sdpm_historico`.`fecha_anterior`)				AS `fechaAnterior`,
+  ROUND(SUM(`creditos_sdpm_historico`.`dias_transcurridos`),2)	AS `dias`,
+  ROUND(SUM(`creditos_sdpm_historico`.`monto_calculado`),2)		AS `monto`,
+  ROUND(AVG(`creditos_sdpm_historico`.`saldo`),2)				AS `saldo`,
+  ROUND(SUM(`creditos_sdpm_historico`.`interes_normal`),2)		AS `interesesNormales`,
+  ROUND(SUM(`creditos_sdpm_historico`.`interes_moratorio`),2)	AS `interesesMoratorios`
 FROM `creditos_sdpm_historico`
 GROUP BY `creditos_sdpm_historico`.`numero_de_credito`)$$
 
