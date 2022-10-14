@@ -3029,8 +3029,19 @@ SUM(IF(((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo
 
 ROUND(SUM(
 IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),
-((`operaciones_mvtos`.`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_moratorio` + `creditos_solicitud`.`tasa_interes`) ) / getDivisorDeInteres())
+((`operaciones_mvtos`.`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`) 
+* (`creditos_solicitud`.`tasa_moratorio`) ) / PRM.`divisor_interes`)
 , 0 )),2) AS `interes_moratorio`,
+
+SUM(
+IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),
+(DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`)), 0)) AS `dias_moratorio`,
+
+SUM(
+IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` <= PRM.`fecha_corte`),
+1, 0)) AS `periodo_vencido`,
+
+
 
 	`creditos_solicitud`.`monto_solicitado` AS `monto_original`,
 	`creditos_solicitud`.`saldo_actual`     AS `saldo_principal` 
