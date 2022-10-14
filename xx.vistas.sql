@@ -780,15 +780,15 @@ DROP TABLE IF EXISTS `creditos_sdpm_acumulado`$$
 
 CREATE  VIEW `creditos_sdpm_acumulado` AS (
 SELECT
-  `creditos_sdpm_historico`.`numero_de_socio`   AS `socio`,
-  `creditos_sdpm_historico`.`numero_de_credito` AS `credito`,
-  MAX(`creditos_sdpm_historico`.`fecha_actual`) AS `fechaActual`,
-  MAX(`creditos_sdpm_historico`.`fecha_anterior`) AS `fechaAnterior`,
-  SUM(`creditos_sdpm_historico`.`dias_transcurridos`) AS `dias`,
-  SUM(`creditos_sdpm_historico`.`monto_calculado`) AS `monto`,
-  AVG(`creditos_sdpm_historico`.`saldo`)        AS `saldo`,
-  SUM(`creditos_sdpm_historico`.`interes_normal`) AS `interesesNormales`,
-  SUM(`creditos_sdpm_historico`.`interes_moratorio`) AS `InteresesMoratorios`
+  `creditos_sdpm_historico`.`numero_de_socio`					AS `socio`,
+  `creditos_sdpm_historico`.`numero_de_credito`					AS `credito`,
+  MAX(`creditos_sdpm_historico`.`fecha_actual`)					AS `fechaActual`,
+  MAX(`creditos_sdpm_historico`.`fecha_anterior`)				AS `fechaAnterior`,
+  ROUND(SUM(`creditos_sdpm_historico`.`dias_transcurridos`),2)	AS `dias`,
+  ROUND(SUM(`creditos_sdpm_historico`.`monto_calculado`),2)		AS `monto`,
+  ROUND(AVG(`creditos_sdpm_historico`.`saldo`),2)				AS `saldo`,
+  ROUND(SUM(`creditos_sdpm_historico`.`interes_normal`),2)		AS `interesesNormales`,
+  ROUND(SUM(`creditos_sdpm_historico`.`interes_moratorio`),2)	AS `interesesMoratorios`
 FROM `creditos_sdpm_historico`
 GROUP BY `creditos_sdpm_historico`.`numero_de_credito`)$$
 
@@ -2845,4 +2845,58 @@ INNER JOIN `personas_domicilios_paises`  ON `personas_domicilios_paises`.`clave_
 ;$$
 
 DELIMITER ;
+
+
+
+
+
+
+
+
+-- - --------------------------------
+-- - Vista Creditos comparados
+-- - Oct / 2022
+-- - --------------------------------
+
+	
+DELIMITER $$
+
+DROP VIEW IF EXISTS `vw_creditos_salud`$$
+DROP TABLE IF EXISTS `vw_creditos_salud`$$
+
+CREATE
+    VIEW `vw_creditos_salud` 
+    AS
+
+SELECT   `creditos_solicitud`.`numero_solicitud` AS `credito`,
+         `creditos_solicitud`.`numero_socio`	AS `persona`,
+         
+         IF(`creditos_montos`.`interes_n_dev` = `creditos_solicitud`.`interes_normal_devengado`, 1,0) 	AS `ok_normal_devengado`,
+         IF(`creditos_montos`.`interes_n_pag` = `creditos_solicitud`.`interes_normal_pagado` ,1,0) 	AS `ok_normal_pagado`,
+         IF(`creditos_montos`.`interes_m_dev` = `creditos_solicitud`.`interes_moratorio_devengado`,1,0) AS `ok_moratorio_devengado`,
+         IF(`creditos_montos`.`interes_m_pag` = `creditos_solicitud`.`interes_moratorio_pagado`,1,0)	AS `ok_moratorio_pagado`,
+
+         IF(`creditos_montos`.`cargos_cbza` = `creditos_solicitud`.`gastoscbza`,1,0)			AS `gastos_de_cobranza`,
+         IF(`creditos_montos`.`bonificaciones` = `creditos_solicitud`.`bonificaciones`,1,0)		AS `bonificaciones`,
+         
+         
+         `creditos_solicitud`.`interes_normal_devengado` AS `interes_normal_devengado`,
+         `creditos_solicitud`.`interes_normal_pagado` AS `interes_normal_pagado`,
+         `creditos_solicitud`.`interes_moratorio_devengado` AS `interes_moratorio_devengado`,
+         `interes_m_pag` = `creditos_solicitud`.`interes_moratorio_pagado`	AS `interes_moratorio_pagado`,
+         
+         `creditos_montos`.`interes_n_corr` AS `interes_normal_corriente`,
+         `creditos_montos`.`interes_m_corr` AS `interes_moratorio_corriente`
+         
+ --         `creditos_sdpm_acumulado`.`interesesNormales`,
+  --       `creditos_sdpm_acumulado`.`interesesMoratorios`
+
+FROM     `creditos_solicitud` 
+INNER JOIN `creditos_montos`  ON `creditos_solicitud`.`numero_solicitud` = `creditos_montos`.`clave_de_credito` 
+
+
+;$$
+
+DELIMITER ;
+
 

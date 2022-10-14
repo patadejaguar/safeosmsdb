@@ -1769,9 +1769,11 @@ SELECT
 		ROUND((`creditos_solicitud`.`tasa_interes`*100),2)   AS `tasa_de_interes` ,
 
 		DATEDIFF(PRM.`fecha_corte`, `letras`.`fecha_de_pago`) AS `dias`,
-		`letras`.`interes_moratorio` AS `mora`,
-		`letras`.`interes_moratorio` AS  `interes_moratorio`,
-		`letras`.`iva_moratorio` AS `iva_moratorio`
+		`letras`.`interes_moratorio` 		AS `mora`,
+		`letras`.`interes_moratorio` 		AS `interes_moratorio`,
+		`letras`.`iva_moratorio` 			AS `iva_moratorio`,
+		`letras`.`gastos_de_cobranza` 		AS `gastos_de_cobranza`,
+		`letras`.`iva_gtos_cobranza` 		AS `iva_gtos_cobranza`
 		
 FROM
 	`letras` `letras` 
@@ -1801,8 +1803,11 @@ CREATE TABLE IF NOT EXISTS `creditos_letras_del_dia` (
 	`tasa_de_interes` double ,
 	`dias` int (7),
 	`mora` double ,
-	`iva_moratorio` double 
+	`iva_moratorio` double,
+	`gastos_de_cobranza` double,
+	`iva_gtos_cobranza` double
 ); 
+
 
 	ALTER TABLE `creditos_letras_del_dia` ADD COLUMN `indice` INT(10) NOT NULL AUTO_INCREMENT AFTER `credito`, ADD PRIMARY KEY (`indice`);
 	ALTER TABLE `creditos_letras_del_dia` ADD INDEX `personacredito` (`persona`, `credito`,`parcialidad`) ;
@@ -3024,8 +3029,19 @@ SUM(IF(((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo
 
 ROUND(SUM(
 IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),
-((`operaciones_mvtos`.`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_moratorio` + `creditos_solicitud`.`tasa_interes`) ) / getDivisorDeInteres())
+((`operaciones_mvtos`.`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`) 
+* (`creditos_solicitud`.`tasa_moratorio`) ) / PRM.`divisor_interes`)
 , 0 )),2) AS `interes_moratorio`,
+
+SUM(
+IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),
+(DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`)), 0)) AS `dias_moratorio`,
+
+SUM(
+IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` <= PRM.`fecha_corte`),
+1, 0)) AS `periodo_vencido`,
+
+
 
 	`creditos_solicitud`.`monto_solicitado` AS `monto_original`,
 	`creditos_solicitud`.`saldo_actual`     AS `saldo_principal` 
@@ -4519,7 +4535,7 @@ END$$
 
 
 -- --------------------------------
--- - Funcion devuelve los gastos de cobranza por mes, echale financiamiento
+-- - Funcion devuelve los gastos de cobranza por mes, echale financiera
 -- - Febrero/2020
 -- - --------------------------------
 
@@ -4536,6 +4552,8 @@ BEGIN
 	 
 	IF ISNULL(NumMeses) THEN
 		SET NumMeses = 0;
+	ELSE
+		SET NumMeses = NumMeses + 1;
 	END IF;
 	
 	SET MtoGtos = 300 * NumMeses;
@@ -5707,22 +5725,25 @@ INNER JOIN (
 
 SELECT
 	`creditos_letras_del_dia`.`credito`,
-	MIN(`creditos_letras_del_dia`.`parcialidad`) AS `letra_minima`,
-	MAX(`creditos_letras_del_dia`.`parcialidad`) AS `letra_maxima`,
-	COUNT(`creditos_letras_del_dia`.`indice`)  AS `letra_pends`,
-	MIN(`creditos_letras_del_dia`.`fecha_de_pago`) AS `fecha_primer_atraso`,
-	MAX(`creditos_letras_del_dia`.`fecha_de_pago`) AS `fecha_ultimo_atraso`,
-	SUM(`creditos_letras_del_dia`.`capital`)       AS `capital`,
-	SUM(`creditos_letras_del_dia`.`interes`)       AS `interes`,
-	SUM(`creditos_letras_del_dia`.`iva`)           AS `iva`,
-	SUM(`creditos_letras_del_dia`.`ahorro`)        AS `ahorro`,
-	SUM(`creditos_letras_del_dia`.`otros`)         AS `otros`,
-	SUM(`creditos_letras_del_dia`.`letra`)         AS `letra`,
-	SUM(`creditos_letras_del_dia`.`mora`)          AS `moratorio`,
-	SUM(`creditos_letras_del_dia`.`iva_moratorio`) AS `iva_moratorio`,
-	SUM(`creditos_letras_del_dia`.`dias`)          AS `dias`,
+	MIN(`creditos_letras_del_dia`.`parcialidad`)		AS `letra_minima`,
+	MAX(`creditos_letras_del_dia`.`parcialidad`)		AS `letra_maxima`,
+	COUNT(`creditos_letras_del_dia`.`indice`)			AS `letra_pends`,
+	MIN(`creditos_letras_del_dia`.`fecha_de_pago`)		AS `fecha_primer_atraso`,
+	MAX(`creditos_letras_del_dia`.`fecha_de_pago`)		AS `fecha_ultimo_atraso`,
+	SUM(`creditos_letras_del_dia`.`capital`)			AS `capital`,
+	SUM(`creditos_letras_del_dia`.`interes`)			AS `interes`,
+	SUM(`creditos_letras_del_dia`.`iva`)				AS `iva`,
+	SUM(`creditos_letras_del_dia`.`ahorro`)				AS `ahorro`,
+	SUM(`creditos_letras_del_dia`.`otros`)				AS `otros`,
+	SUM(`creditos_letras_del_dia`.`letra`)				AS `letra`,
+	SUM(`creditos_letras_del_dia`.`mora`)				AS `moratorio`,
+	SUM(`creditos_letras_del_dia`.`iva_moratorio`)		AS `iva_moratorio`,
+	SUM(`creditos_letras_del_dia`.`dias`)				AS `dias`,
+	SUM(`creditos_letras_del_dia`.`gastos_de_cobranza`)	AS `gastos_de_cobranza`,
+	SUM(`creditos_letras_del_dia`.`iva_gtos_cobranza`)	AS `iva_gtos_cobranza`,
 	`creditos_letras_del_dia`.`tasa_de_mora`,
-	`creditos_letras_del_dia`.`tasa_de_interes` 
+	`creditos_letras_del_dia`.`tasa_de_interes`
+	
 FROM
 	`creditos_letras_del_dia` `creditos_letras_del_dia` 
  -- WHERE (`creditos_letras_del_dia`.`credito` = 20114643) 
@@ -5759,20 +5780,22 @@ INNER JOIN (
 
 SELECT
 	`creditos_letras_del_dia`.`credito`,
-	MIN(`creditos_letras_del_dia`.`parcialidad`) AS `letra_minima`,
-	MAX(`creditos_letras_del_dia`.`parcialidad`) AS `letra_maxima`,
-	COUNT(`creditos_letras_del_dia`.`indice`)  AS `letra_pends`,
-	MIN(`creditos_letras_del_dia`.`fecha_de_pago`) AS `fecha_primer_atraso`,
-	MAX(`creditos_letras_del_dia`.`fecha_de_pago`) AS `fecha_ultimo_atraso`,
-	SUM(`creditos_letras_del_dia`.`capital`)       AS `capital`,
-	SUM(`creditos_letras_del_dia`.`interes`)       AS `interes`,
-	SUM(`creditos_letras_del_dia`.`iva`)           AS `iva`,
-	SUM(`creditos_letras_del_dia`.`ahorro`)        AS `ahorro`,
-	SUM(`creditos_letras_del_dia`.`otros`)         AS `otros`,
-	SUM(`creditos_letras_del_dia`.`letra`)         AS `letra`,
-	SUM(`creditos_letras_del_dia`.`mora`)          AS `moratorio`,
-	SUM(`creditos_letras_del_dia`.`iva_moratorio`) AS `iva_moratorio`,
-	SUM(`creditos_letras_del_dia`.`dias`)          AS `dias`,
+	MIN(`creditos_letras_del_dia`.`parcialidad`)	AS `letra_minima`,
+	MAX(`creditos_letras_del_dia`.`parcialidad`)	AS `letra_maxima`,
+	COUNT(`creditos_letras_del_dia`.`indice`)		AS `letra_pends`,
+	MIN(`creditos_letras_del_dia`.`fecha_de_pago`)	AS `fecha_primer_atraso`,
+	MAX(`creditos_letras_del_dia`.`fecha_de_pago`)	AS `fecha_ultimo_atraso`,
+	SUM(`creditos_letras_del_dia`.`capital`)		AS `capital`,
+	SUM(`creditos_letras_del_dia`.`interes`)		AS `interes`,
+	SUM(`creditos_letras_del_dia`.`iva`)			AS `iva`,
+	SUM(`creditos_letras_del_dia`.`ahorro`)			AS `ahorro`,
+	SUM(`creditos_letras_del_dia`.`otros`)			AS `otros`,
+	SUM(`creditos_letras_del_dia`.`letra`)			AS `letra`,
+	SUM(`creditos_letras_del_dia`.`mora`)			AS `moratorio`,
+	SUM(`creditos_letras_del_dia`.`iva_moratorio`)	AS `iva_moratorio`,
+	SUM(`creditos_letras_del_dia`.`dias`)          		AS `dias`,
+	SUM(`creditos_letras_del_dia`.`gastos_de_cobranza`)	AS `gastos_de_cobranza`,
+	SUM(`creditos_letras_del_dia`.`iva_gtos_cobranza`)	AS `iva_gtos_cobranza`,
 	`creditos_letras_del_dia`.`tasa_de_mora`,
 	`creditos_letras_del_dia`.`tasa_de_interes` 
 FROM
@@ -5782,7 +5805,7 @@ GROUP BY
 	`creditos_letras_del_dia`.`credito`
 ) tt ON tt.`credito` = `creditos_montos`.`clave_de_credito` 
 SET `capital_exigible` = tt.`capital`
-WHERE `capital_exigible` != tt.`capital`;
+WHERE (`capital_exigible` != tt.`capital`) AND (`creditos_montos`.`clave_de_credito` = IDCredito);
 
 
 END$$
@@ -5868,6 +5891,8 @@ BEGIN
 	 
 	IF ISNULL(NumMeses) THEN
 		SET NumMeses = 0;
+	ELSE
+		SET NumMeses = NumMeses + 1;
 	END IF;
 	
 	SET MtoGtos = 300 * NumMeses;
@@ -6019,4 +6044,83 @@ END$$
 
 DELIMITER ;
 
+
+
+-- --------------------------------
+-- - Procedimiento Fix montos cuando no se devengan credito
+-- - Octubre 2022
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `proc_fix_cierre_devengados`$$
+
+CREATE PROCEDURE `proc_fix_cierre_devengados`()
+
+BEGIN
+
+UPDATE `creditos_montos` 
+INNER JOIN (
+
+SELECT   `tmp_creditos_abonos_parciales`.`docto_afectado` AS `credito`,
+         SUM(`tmp_creditos_abonos_parciales`.`capital` )  AS `capital`,
+         SUM(`tmp_creditos_abonos_parciales`.`interes_normal` )  AS `interes`,
+         SUM(`tmp_creditos_abonos_parciales`.`interes_moratorio` )  AS `moratorio`,
+         SUM(`tmp_creditos_abonos_parciales`.`otros` )  AS `otros`
+FROM     `tmp_creditos_abonos_parciales`
+GROUP BY `tmp_creditos_abonos_parciales`.`docto_afectado`
+) tt ON tt.`credito` = `creditos_montos`.`clave_de_credito` 
+SET
+`interes_n_dev` = tt.`interes`, 
+`interes_n_pag` = tt.`interes`,
+`interes_m_dev`= tt.`moratorio`,
+`interes_m_pag` = tt.`moratorio`;
+
+
+
+UPDATE `creditos_solicitud` 
+INNER JOIN (
+
+SELECT   `tmp_creditos_abonos_parciales`.`docto_afectado` AS `credito`,
+         SUM(`tmp_creditos_abonos_parciales`.`capital` )  AS `capital`,
+         SUM(`tmp_creditos_abonos_parciales`.`interes_normal` )  AS `interes`,
+         SUM(`tmp_creditos_abonos_parciales`.`interes_moratorio` )  AS `moratorio`,
+         SUM(`tmp_creditos_abonos_parciales`.`otros` )  AS `otros`
+FROM     `tmp_creditos_abonos_parciales`
+GROUP BY `tmp_creditos_abonos_parciales`.`docto_afectado`
+) tt ON tt.`credito` = `creditos_solicitud`.`numero_solicitud` 
+SET
+`interes_normal_devengado` = tt.`interes`, 
+`interes_normal_pagado` = tt.`interes`,
+`interes_moratorio_devengado`= tt.`moratorio`,
+`interes_moratorio_pagado` = tt.`moratorio`;
+
+-- Actualizar Interes normal
+
+
+UPDATE `creditos_montos` 
+INNER JOIN (
+
+SELECT   `tmp_creds_prox_letras`.`docto_afectado` AS `credito`,
+         SUM(`tmp_creds_prox_letras`.`interes_exigible` )  AS `interes`,
+         SUM(`tmp_creds_prox_letras`.`interes_moratorio` )  AS `moratorio`,
+         SUM(`tmp_creds_prox_letras`.`periodo_vencido`) AS `periodos_vencidos`,
+         SUM(`tmp_creds_prox_letras`.`capital_exigible`) AS `cap_exigible`
+FROM     `tmp_creds_prox_letras`
+GROUP BY `credito`
+
+) tt ON tt.`credito` = `creditos_montos`.`clave_de_credito` 
+SET
+
+`interes_n_corr` = tt.`interes`, 
+`interes_m_corr` = tt.`moratorio`,
+`periodo_pends`	= tt.`periodos_vencidos`,
+`capital_exigible` = tt.`cap_exigible`;
+
+-- Actualizar Gastos de Cobranza
+
+
+END$$
+
+DELIMITER ;
 
