@@ -2871,13 +2871,19 @@ CREATE
 SELECT   `creditos_solicitud`.`numero_solicitud` AS `credito`,
          `creditos_solicitud`.`numero_socio`	AS `persona`,
          
-         IF(`creditos_montos`.`interes_n_dev` = `creditos_solicitud`.`interes_normal_devengado`, 1,0) 	AS `interes_normal_devengado`,
-         IF(`creditos_montos`.`interes_n_pag` = `creditos_solicitud`.`interes_normal_pagado` ,1,0) 	AS `interes_normal_pagado`,
-         IF(`creditos_montos`.`interes_m_dev` = `creditos_solicitud`.`interes_moratorio_devengado`,1,0) AS `interes_moratorio_devengado`,
-         IF(`creditos_montos`.`interes_m_pag` = `creditos_solicitud`.`interes_moratorio_pagado`,1,0)	AS `interes_moratorio_pagado`,
+         IF(`creditos_montos`.`interes_n_dev` = `creditos_solicitud`.`interes_normal_devengado`, 1,0) 	AS `ok_normal_devengado`,
+         IF(`creditos_montos`.`interes_n_pag` = `creditos_solicitud`.`interes_normal_pagado` ,1,0) 	AS `ok_normal_pagado`,
+         IF(`creditos_montos`.`interes_m_dev` = `creditos_solicitud`.`interes_moratorio_devengado`,1,0) AS `ok_moratorio_devengado`,
+         IF(`creditos_montos`.`interes_m_pag` = `creditos_solicitud`.`interes_moratorio_pagado`,1,0)	AS `ok_moratorio_pagado`,
 
          IF(`creditos_montos`.`cargos_cbza` = `creditos_solicitud`.`gastoscbza`,1,0)			AS `gastos_de_cobranza`,
          IF(`creditos_montos`.`bonificaciones` = `creditos_solicitud`.`bonificaciones`,1,0)		AS `bonificaciones`,
+         
+         
+         `creditos_solicitud`.`interes_normal_devengado` AS `interes_normal_devengado`,
+         `creditos_solicitud`.`interes_normal_pagado` AS `interes_normal_pagado`,
+         `creditos_solicitud`.`interes_moratorio_devengado` AS `interes_moratorio_devengado`,
+         `interes_m_pag` = `creditos_solicitud`.`interes_moratorio_pagado`	AS `interes_moratorio_pagado`,
          
          `creditos_montos`.`interes_n_corr` AS `interes_normal_corriente`,
          `creditos_montos`.`interes_m_corr` AS `interes_moratorio_corriente`
