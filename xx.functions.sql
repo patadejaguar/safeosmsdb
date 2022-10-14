@@ -1769,9 +1769,11 @@ SELECT
 		ROUND((`creditos_solicitud`.`tasa_interes`*100),2)   AS `tasa_de_interes` ,
 
 		DATEDIFF(PRM.`fecha_corte`, `letras`.`fecha_de_pago`) AS `dias`,
-		`letras`.`interes_moratorio` AS `mora`,
-		`letras`.`interes_moratorio` AS  `interes_moratorio`,
-		`letras`.`iva_moratorio` AS `iva_moratorio`
+		`letras`.`interes_moratorio` 		AS `mora`,
+		`letras`.`interes_moratorio` 		AS `interes_moratorio`,
+		`letras`.`iva_moratorio` 			AS `iva_moratorio`,
+		`letras`.`gastos_de_cobranza` 		AS `gastos_de_cobranza`,
+		`letras`.`iva_gtos_cobranza` 		AS `iva_gtos_cobranza`
 		
 FROM
 	`letras` `letras` 
@@ -1801,8 +1803,11 @@ CREATE TABLE IF NOT EXISTS `creditos_letras_del_dia` (
 	`tasa_de_interes` double ,
 	`dias` int (7),
 	`mora` double ,
-	`iva_moratorio` double 
+	`iva_moratorio` double,
+	`gastos_de_cobranza` double,
+	`iva_gtos_cobranza` double
 ); 
+
 
 	ALTER TABLE `creditos_letras_del_dia` ADD COLUMN `indice` INT(10) NOT NULL AUTO_INCREMENT AFTER `credito`, ADD PRIMARY KEY (`indice`);
 	ALTER TABLE `creditos_letras_del_dia` ADD INDEX `personacredito` (`persona`, `credito`,`parcialidad`) ;
@@ -5707,22 +5712,25 @@ INNER JOIN (
 
 SELECT
 	`creditos_letras_del_dia`.`credito`,
-	MIN(`creditos_letras_del_dia`.`parcialidad`) AS `letra_minima`,
-	MAX(`creditos_letras_del_dia`.`parcialidad`) AS `letra_maxima`,
-	COUNT(`creditos_letras_del_dia`.`indice`)  AS `letra_pends`,
-	MIN(`creditos_letras_del_dia`.`fecha_de_pago`) AS `fecha_primer_atraso`,
-	MAX(`creditos_letras_del_dia`.`fecha_de_pago`) AS `fecha_ultimo_atraso`,
-	SUM(`creditos_letras_del_dia`.`capital`)       AS `capital`,
-	SUM(`creditos_letras_del_dia`.`interes`)       AS `interes`,
-	SUM(`creditos_letras_del_dia`.`iva`)           AS `iva`,
-	SUM(`creditos_letras_del_dia`.`ahorro`)        AS `ahorro`,
-	SUM(`creditos_letras_del_dia`.`otros`)         AS `otros`,
-	SUM(`creditos_letras_del_dia`.`letra`)         AS `letra`,
-	SUM(`creditos_letras_del_dia`.`mora`)          AS `moratorio`,
-	SUM(`creditos_letras_del_dia`.`iva_moratorio`) AS `iva_moratorio`,
-	SUM(`creditos_letras_del_dia`.`dias`)          AS `dias`,
+	MIN(`creditos_letras_del_dia`.`parcialidad`)		AS `letra_minima`,
+	MAX(`creditos_letras_del_dia`.`parcialidad`)		AS `letra_maxima`,
+	COUNT(`creditos_letras_del_dia`.`indice`)			AS `letra_pends`,
+	MIN(`creditos_letras_del_dia`.`fecha_de_pago`)		AS `fecha_primer_atraso`,
+	MAX(`creditos_letras_del_dia`.`fecha_de_pago`)		AS `fecha_ultimo_atraso`,
+	SUM(`creditos_letras_del_dia`.`capital`)			AS `capital`,
+	SUM(`creditos_letras_del_dia`.`interes`)			AS `interes`,
+	SUM(`creditos_letras_del_dia`.`iva`)				AS `iva`,
+	SUM(`creditos_letras_del_dia`.`ahorro`)				AS `ahorro`,
+	SUM(`creditos_letras_del_dia`.`otros`)				AS `otros`,
+	SUM(`creditos_letras_del_dia`.`letra`)				AS `letra`,
+	SUM(`creditos_letras_del_dia`.`mora`)				AS `moratorio`,
+	SUM(`creditos_letras_del_dia`.`iva_moratorio`)		AS `iva_moratorio`,
+	SUM(`creditos_letras_del_dia`.`dias`)				AS `dias`,
+	SUM(`creditos_letras_del_dia`.`gastos_de_cobranza`)	AS `gastos_de_cobranza`,
+	SUM(`creditos_letras_del_dia`.`iva_gtos_cobranza`)	AS `iva_gtos_cobranza`,
 	`creditos_letras_del_dia`.`tasa_de_mora`,
-	`creditos_letras_del_dia`.`tasa_de_interes` 
+	`creditos_letras_del_dia`.`tasa_de_interes`
+	
 FROM
 	`creditos_letras_del_dia` `creditos_letras_del_dia` 
  -- WHERE (`creditos_letras_del_dia`.`credito` = 20114643) 
@@ -5759,20 +5767,22 @@ INNER JOIN (
 
 SELECT
 	`creditos_letras_del_dia`.`credito`,
-	MIN(`creditos_letras_del_dia`.`parcialidad`) AS `letra_minima`,
-	MAX(`creditos_letras_del_dia`.`parcialidad`) AS `letra_maxima`,
-	COUNT(`creditos_letras_del_dia`.`indice`)  AS `letra_pends`,
-	MIN(`creditos_letras_del_dia`.`fecha_de_pago`) AS `fecha_primer_atraso`,
-	MAX(`creditos_letras_del_dia`.`fecha_de_pago`) AS `fecha_ultimo_atraso`,
-	SUM(`creditos_letras_del_dia`.`capital`)       AS `capital`,
-	SUM(`creditos_letras_del_dia`.`interes`)       AS `interes`,
-	SUM(`creditos_letras_del_dia`.`iva`)           AS `iva`,
-	SUM(`creditos_letras_del_dia`.`ahorro`)        AS `ahorro`,
-	SUM(`creditos_letras_del_dia`.`otros`)         AS `otros`,
-	SUM(`creditos_letras_del_dia`.`letra`)         AS `letra`,
-	SUM(`creditos_letras_del_dia`.`mora`)          AS `moratorio`,
-	SUM(`creditos_letras_del_dia`.`iva_moratorio`) AS `iva_moratorio`,
-	SUM(`creditos_letras_del_dia`.`dias`)          AS `dias`,
+	MIN(`creditos_letras_del_dia`.`parcialidad`)	AS `letra_minima`,
+	MAX(`creditos_letras_del_dia`.`parcialidad`)	AS `letra_maxima`,
+	COUNT(`creditos_letras_del_dia`.`indice`)		AS `letra_pends`,
+	MIN(`creditos_letras_del_dia`.`fecha_de_pago`)	AS `fecha_primer_atraso`,
+	MAX(`creditos_letras_del_dia`.`fecha_de_pago`)	AS `fecha_ultimo_atraso`,
+	SUM(`creditos_letras_del_dia`.`capital`)		AS `capital`,
+	SUM(`creditos_letras_del_dia`.`interes`)		AS `interes`,
+	SUM(`creditos_letras_del_dia`.`iva`)			AS `iva`,
+	SUM(`creditos_letras_del_dia`.`ahorro`)			AS `ahorro`,
+	SUM(`creditos_letras_del_dia`.`otros`)			AS `otros`,
+	SUM(`creditos_letras_del_dia`.`letra`)			AS `letra`,
+	SUM(`creditos_letras_del_dia`.`mora`)			AS `moratorio`,
+	SUM(`creditos_letras_del_dia`.`iva_moratorio`)	AS `iva_moratorio`,
+	SUM(`creditos_letras_del_dia`.`dias`)          		AS `dias`,
+	SUM(`creditos_letras_del_dia`.`gastos_de_cobranza`)	AS `gastos_de_cobranza`,
+	SUM(`creditos_letras_del_dia`.`iva_gtos_cobranza`)	AS `iva_gtos_cobranza`,
 	`creditos_letras_del_dia`.`tasa_de_mora`,
 	`creditos_letras_del_dia`.`tasa_de_interes` 
 FROM
@@ -5782,7 +5792,7 @@ GROUP BY
 	`creditos_letras_del_dia`.`credito`
 ) tt ON tt.`credito` = `creditos_montos`.`clave_de_credito` 
 SET `capital_exigible` = tt.`capital`
-WHERE `capital_exigible` != tt.`capital`;
+WHERE (`capital_exigible` != tt.`capital`) AND (`creditos_montos`.`clave_de_credito` = IDCredito);
 
 
 END$$
