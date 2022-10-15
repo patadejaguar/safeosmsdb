@@ -6059,6 +6059,8 @@ CREATE PROCEDURE `proc_fix_cierre_devengados`()
 
 BEGIN
 
+-- Actualizar Intereses Devengados y pagados
+
 UPDATE `creditos_montos` 
 INNER JOIN (
 
@@ -6117,10 +6119,143 @@ SET
 `periodo_pends`	= tt.`periodos_vencidos`,
 `capital_exigible` = tt.`cap_exigible`;
 
--- Actualizar Gastos de Cobranza
+
+END$$
+
+DELIMITER ;
+
+-- -- 
+-- -- Actualiza la consulta de pagos por un credito
+-- -- Octubre 2022
+-- -- se debe actualizar conforme a proc_creditos_abonos_parciales
+-- -- 
+DELIMITER $$
+DROP PROCEDURE IF EXISTS `proc_credito_ab_parcs_by_cred`$$
+
+CREATE PROCEDURE `proc_credito_ab_parcs_by_cred`(IDCredito BIGINT)
+BEGIN
+
+DELETE FROM `tmp_creditos_abonos_parciales` WHERE `docto_afectado`= IDCredito;
+
+INSERT INTO `tmp_creditos_abonos_parciales` ( 
+
+SELECT
+  `eacp_config_bases_de_integracion_miembros`.`codigo_de_base` AS `codigo_de_base`,
+  `operaciones_mvtos`.`socio_afectado`                         AS `socio_afectado`,
+  `operaciones_mvtos`.`docto_afectado`                         AS `docto_afectado`,
+  `operaciones_mvtos`.`periodo_socio`                          AS `periodo_socio`,
+  MAX(`operaciones_mvtos`.`fecha_afectacion`)                  AS `fecha_de_pago`,
+  MAX(`operaciones_mvtos`.`fecha_vcto`)                        AS `fecha_de_vencimiento`,
+  SUM((CASE WHEN (`subclasificacion` = 120) THEN (`operaciones_mvtos`.`afectacion_real` * `afectacion`) ELSE 0 END)) AS `capital`,
+  SUM((CASE WHEN (`subclasificacion` = 140) THEN (`operaciones_mvtos`.`afectacion_real` * `afectacion`) ELSE 0 END)) AS `interes_normal`,
+SUM((CASE WHEN (`subclasificacion` = 141) THEN (`operaciones_mvtos`.`afectacion_real` * `afectacion`) ELSE 0 END)) AS `interes_moratorio`,
+SUM((CASE WHEN (`subclasificacion` = 0) THEN (`operaciones_mvtos`.`afectacion_real` * `afectacion`) ELSE 0 END)) AS `otros`,
+SUM((CASE WHEN (`subclasificacion` = 151) THEN (`operaciones_mvtos`.`afectacion_real` * `afectacion`) ELSE 0 END)) AS `impuesto`,
+
+SUM(`operaciones_mvtos`.`afectacion_real` * `afectacion`) AS `total`,
+SUM((CASE WHEN (`subclasificacion` = 120) THEN 1 ELSE 0 END)) AS `numero_pagos`
+
+FROM (`operaciones_mvtos`
+   JOIN `eacp_config_bases_de_integracion_miembros`
+     ON ((`operaciones_mvtos`.`tipo_operacion` = `eacp_config_bases_de_integracion_miembros`.`miembro`)))
+WHERE (`eacp_config_bases_de_integracion_miembros`.`codigo_de_base` = 15000)
+AND (`operaciones_mvtos`.`docto_afectado`=IDCredito)
+GROUP BY `operaciones_mvtos`.`docto_afectado`,`operaciones_mvtos`.`periodo_socio`
+
+	ORDER BY
+		`eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,
+		`operaciones_mvtos`.`docto_afectado`,
+		`operaciones_mvtos`.`periodo_socio`
+
+) ;
+
+
 
 
 END$$
 
 DELIMITER ;
+
+
+-- --------------------------------
+-- - Procedimiento Fix montos cuando no se devengan credito
+-- - Por credito
+-- - Octubre 2022
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `proc_fix_devengados_by_cred`$$
+
+CREATE PROCEDURE `proc_fix_devengados_by_cred`(IDCredito BIGINT)
+
+BEGIN
+
+-- Actualizar Intereses Devengados y pagados
+
+UPDATE `creditos_montos` 
+INNER JOIN (
+
+SELECT   `tmp_creditos_abonos_parciales`.`docto_afectado` AS `credito`,
+         SUM(`tmp_creditos_abonos_parciales`.`capital` )  AS `capital`,
+         SUM(`tmp_creditos_abonos_parciales`.`interes_normal` )  AS `interes`,
+         SUM(`tmp_creditos_abonos_parciales`.`interes_moratorio` )  AS `moratorio`,
+         SUM(`tmp_creditos_abonos_parciales`.`otros` )  AS `otros`
+FROM     `tmp_creditos_abonos_parciales`
+GROUP BY `tmp_creditos_abonos_parciales`.`docto_afectado`
+) tt ON tt.`credito` = `creditos_montos`.`clave_de_credito` 
+SET
+`interes_n_dev` = tt.`interes`, 
+`interes_n_pag` = tt.`interes`,
+`interes_m_dev`= tt.`moratorio`,
+`interes_m_pag` = tt.`moratorio`
+WHERE `creditos_montos`.`clave_de_credito`=IDCredito;
+
+
+
+UPDATE `creditos_solicitud` 
+INNER JOIN (
+
+SELECT   `tmp_creditos_abonos_parciales`.`docto_afectado` AS `credito`,
+         SUM(`tmp_creditos_abonos_parciales`.`capital` )  AS `capital`,
+         SUM(`tmp_creditos_abonos_parciales`.`interes_normal` )  AS `interes`,
+         SUM(`tmp_creditos_abonos_parciales`.`interes_moratorio` )  AS `moratorio`,
+         SUM(`tmp_creditos_abonos_parciales`.`otros` )  AS `otros`
+FROM     `tmp_creditos_abonos_parciales`
+GROUP BY `tmp_creditos_abonos_parciales`.`docto_afectado`
+) tt ON tt.`credito` = `creditos_solicitud`.`numero_solicitud` 
+SET
+`interes_normal_devengado` = tt.`interes`, 
+`interes_normal_pagado` = tt.`interes`,
+`interes_moratorio_devengado`= tt.`moratorio`,
+`interes_moratorio_pagado` = tt.`moratorio`
+WHERE `creditos_solicitud`.`numero_solicitud`=IDCredito;
+
+-- Actualizar Interes normal
+
+
+UPDATE `creditos_montos` 
+INNER JOIN (
+
+SELECT   `letras`.`credito`,
+         SUM(`letras`.`letra_pends`)  AS `periodos_vencidos`,
+         SUM(`letras`.`interes_exigible`)  AS `interes`,
+         SUM(`letras`.`capital_exigible`)  AS `cap_exigible`,
+         SUM(`letras`.`interes_moratorio`) AS `moratorio`
+FROM     `letras`
+GROUP BY `letras`.`credito`
+
+) tt ON tt.`credito` = `creditos_montos`.`clave_de_credito` 
+SET
+
+`interes_n_corr` = tt.`interes`, 
+`interes_m_corr` = tt.`moratorio`,
+`periodo_pends`	= tt.`periodos_vencidos`,
+`capital_exigible` = tt.`cap_exigible`
+WHERE `creditos_montos`.`clave_de_credito`=IDCredito;
+
+END$$
+
+DELIMITER ;
+
 
