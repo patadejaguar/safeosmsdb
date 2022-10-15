@@ -1061,15 +1061,22 @@ SELECT
 		ROUND(SUM(
 		IF((`tipo_operacion` = 410  AND `fecha_afectacion` <= PRM.`fecha_corte` AND `afectacion_real`>0),
 		((`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `fecha_afectacion`) * (`creditos_solicitud`.`tasa_interes`) ) / PRM.`divisor_interes`)
-		, 0 )),2) AS `int_corriente_letra`
+		, 0 )),2) AS `int_corriente_letra`,
 		
-		,SUM(IF((`tipo_operacion` = 410  AND `fecha_afectacion` > PRM.`fecha_corte`),`afectacion_real`,0)) 								AS `capital_nopagado`,
+		SUM(IF((`tipo_operacion` = 410  AND `fecha_afectacion` > PRM.`fecha_corte`),`afectacion_real`,0)) 								AS `capital_nopagado`,
 		SUM(IF((`tipo_operacion` = 411 AND `fecha_afectacion` > PRM.`fecha_corte`),`afectacion_real`,0)) 								AS `interes_nopagado`,
 		SUM(IF((`tipo_operacion` = 413  AND `fecha_afectacion` > PRM.`fecha_corte`),`afectacion_real`,0)) 								AS `iva_nopagado`,
 		SUM(IF((`tipo_operacion` = 412  AND `fecha_afectacion` > PRM.`fecha_corte`),`afectacion_real`,0)) 								AS `ahorro_nopagado`,
-		SUM(IF(((`tipo_operacion` < 410 OR `tipo_operacion` > 413)  AND `fecha_afectacion` > PRM.`fecha_corte`) , `afectacion_real`,0)) AS `otros_nopagado`
-		,IF((`tipo_operacion` = 410 AND `periodo_socio`= (`creditos_solicitud`.`ultimo_periodo_afectado`+1)),  MMC.`cargos_cbza`,0) 	AS `gastos_de_cobranza`
-		,IF((`tipo_operacion` = 410 AND `periodo_socio`= (`creditos_solicitud`.`ultimo_periodo_afectado`+1)), ROUND(MMC.`cargos_cbza`*PRM.`tasa_iva`,2),0) 	AS `iva_gtos_cobranza`
+		SUM(IF(((`tipo_operacion` < 410 OR `tipo_operacion` > 413)  AND `fecha_afectacion` > PRM.`fecha_corte`) , `afectacion_real`,0)) AS `otros_nopagado`,
+		IF((`tipo_operacion` = 410 AND `periodo_socio`= (`creditos_solicitud`.`ultimo_periodo_afectado`+1)),  MMC.`cargos_cbza`,0) 	AS `gastos_de_cobranza`,
+		IF((`tipo_operacion` = 410 AND `periodo_socio`= (`creditos_solicitud`.`ultimo_periodo_afectado`+1)), ROUND(MMC.`cargos_cbza`*PRM.`tasa_iva`,2),0) 	AS `iva_gtos_cobranza`,
+		
+		MIN(IF(`afectacion_real`>0 AND `tipo_operacion` = 410,`periodo_socio`,`creditos_solicitud`.`pagos_autorizados`))	AS `letra_minima`,
+		MAX(IF(`afectacion_real`>0 AND `tipo_operacion` = 410,`periodo_socio`,0))											AS `letra_maxima`,
+		
+		SUM(IF((`afectacion_real`>0 AND `tipo_operacion` = 410 AND `fecha_afectacion` <= PRM.`fecha_corte`),1,0))	AS `letra_pends`, 
+		SUM(IF((`afectacion_real`>0 AND `tipo_operacion` = 410),1,0))	AS `letra_totales`,
+		MIN(IF(`afectacion_real`>0 AND `tipo_operacion` = 410,`fecha_afectacion`,`creditos_solicitud`.`fecha_vencimiento`))			AS `fecha_primer_atraso`
 
 		FROM
 			`operaciones_mvtos` `operaciones_mvtos` 
