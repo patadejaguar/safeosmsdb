@@ -6259,3 +6259,51 @@ END$$
 DELIMITER ;
 
 
+
+
+
+-- --------------------------------
+-- - Procedimiento Fix Nuevos Devengados
+-- - Por credito
+-- - Octubre 2022
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `proc_fix_nuevo_devengados`$$
+
+CREATE PROCEDURE `proc_fix_nuevo_devengados`()
+
+BEGIN
+
+UPDATE `creditos_plan_de_pagos` 
+SET
+`gtoscbza`= 0,
+`mora` = 0,
+`sdo_cap` = `capital`,
+`sdo_int` = `interes`;
+
+UPDATE `creditos_plan_de_pagos` 
+INNER JOIN (
+
+SELECT   `letras`.`credito`,
+`letras`.`parcialidad`,
+         `letras`.`letra_pends`  AS `periodos_vencidos`,
+         `letras`.`interes_exigible`  AS `interes`,
+         `letras`.`capital_exigible`  AS `cap_exigible`,
+         `letras`.`interes_moratorio` AS `moratorio`,
+         `letras`.`gastos_de_cobranza`
+FROM     `letras`
+
+) tt ON (tt.`credito` = `creditos_plan_de_pagos`.`clave_de_credito` AND tt.`parcialidad` = `creditos_plan_de_pagos`.`numero_de_parcialidad`)
+SET
+`gtoscbza`= tt.`gastos_de_cobranza`,
+`mora`= tt.`moratorio`,
+`sdo_cap` = tt.`cap_exigible`,
+`sdo_int` = tt.`interes`;
+
+END$$
+
+DELIMITER ;
+
+
