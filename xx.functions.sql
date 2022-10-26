@@ -6261,7 +6261,6 @@ DELIMITER ;
 
 
 
-
 -- --------------------------------
 -- - Procedimiento Fix Nuevos Devengados
 -- - Por credito
@@ -6286,14 +6285,14 @@ SET
 UPDATE `creditos_plan_de_pagos` 
 INNER JOIN (
 
-SELECT   `letras`.`credito`,
-`letras`.`parcialidad`,
-         `letras`.`letra_pends`  AS `periodos_vencidos`,
-         `letras`.`interes_exigible`  AS `interes`,
-         `letras`.`capital_exigible`  AS `cap_exigible`,
-         `letras`.`interes_moratorio` AS `moratorio`,
-         `letras`.`gastos_de_cobranza`
-FROM     `letras`
+SELECT   `vw_letras_calculo`.`credito`,
+`vw_letras_calculo`.`parcialidad`,
+         `vw_letras_calculo`.`letra_pends`  AS `periodos_vencidos`,
+         `vw_letras_calculo`.`interes_exigible`  AS `interes`,
+         `vw_letras_calculo`.`capital_exigible`  AS `cap_exigible`,
+         `vw_letras_calculo`.`interes_moratorio` AS `moratorio`,
+         `vw_letras_calculo`.`gastos_de_cobranza`
+FROM     `vw_letras_calculo`
 
 ) tt ON (tt.`credito` = `creditos_plan_de_pagos`.`clave_de_credito` AND tt.`parcialidad` = `creditos_plan_de_pagos`.`numero_de_parcialidad`)
 SET
@@ -6302,8 +6301,24 @@ SET
 `sdo_cap` = tt.`cap_exigible`,
 `sdo_int` = tt.`interes`;
 
+
+INSERT `creditos_cargos_generados`(`credito`,`periodo`,`fecha`,`mora_devengado`,`penas_devengado`,`cobranza_devengado`,`bonificacion`,`bonificacion_es_tasa`)
+(
+SELECT   `vw_letras_calculo`.`credito`,
+		 `vw_letras_calculo`.`parcialidad`,
+		 CURDATE() AS `fecha`,
+         `vw_letras_calculo`.`interes_moratorio` AS `moratorio`,
+         0 AS  `penas`,
+         `vw_letras_calculo`.`gastos_de_cobranza`,
+         0 AS `bonificacion`,
+         0 AS `tasa_bonificacion`
+FROM     `vw_letras_calculo`
+WHERE (SELECT COUNT(*) FROM `creditos_cargos_generados` WHERE `credito`=`vw_letras_calculo`.`credito` AND `periodo`=`vw_letras_calculo`.`parcialidad`)<=0
+GROUP BY `vw_letras_calculo`.`credito`, `vw_letras_calculo`.`parcialidad`
+);
+
+
+
 END$$
 
 DELIMITER ;
-
-
