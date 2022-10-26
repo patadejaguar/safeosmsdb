@@ -2921,10 +2921,10 @@ DELIMITER ;
 
 DELIMITER $$
 
-DROP VIEW IF EXISTS `vw_letras_oem`$$
-DROP TABLE IF EXISTS `vw_letras_oem`$$
+DROP VIEW IF EXISTS `vw_letras_calculo`$$
+DROP TABLE IF EXISTS `vw_letras_calculo`$$
 
-CREATE  VIEW `vw_letras_oem` AS (
+CREATE  VIEW `vw_letras_calculo` AS (
 SELECT
 		BI_.`codigo_de_base`	AS `codigo_de_base`,
 		`socio_afectado`												AS `socio_afectado`,
@@ -3032,4 +3032,7 @@ SELECT
 )$$
 
 DELIMITER ;
+
+
+
 
