@@ -3035,4 +3035,37 @@ DELIMITER ;
 
 
 
+-- - --------------------------------
+-- - Vista Personas Municipios
+-- - Oct / 2022
+-- - --------------------------------
 
+	
+DELIMITER $$
+
+DROP VIEW IF EXISTS `vw_personas_municipios`$$
+DROP TABLE IF EXISTS `vw_personas_municipios`$$
+
+CREATE
+    VIEW `vw_personas_municipios` 
+    AS
+
+SELECT   `tmp_personas_geografia`.`persona`,
+         `tmp_personas_geografia`.`codigo_postal`,
+         `tmp_personas_geografia`.`clave_de_localidad`,
+         `tmp_personas_geografia`.`clave_de_pais`,
+         `tmp_personas_geografia`.`clave_de_municipio`,
+         `tmp_personas_geografia`.`clave_de_entidadfederativa`,
+         `general_estados`.`nombre` AS `nombre_entidadfederativa`,
+         `general_municipios`.`nombre_del_municipio` AS `nombre_municipio`,
+         `general_municipios`.`clave_unica` AS `uuid_municipio`
+FROM     `general_municipios` 
+INNER JOIN `tmp_personas_geografia`  ON `general_municipios`.`clave_de_entidad` = `tmp_personas_geografia`.`clave_de_entidadfederativa` AND
+                                        `general_municipios`.`clave_de_municipio` = `tmp_personas_geografia`.`clave_de_municipio` 
+INNER JOIN `general_estados`  ON `general_estados`.`clave_numerica` = `tmp_personas_geografia`.`clave_de_entidadfederativa` 
+ORDER BY `tmp_personas_geografia`.`persona` DESC
+
+
+;$$
+
+DELIMITER ;
