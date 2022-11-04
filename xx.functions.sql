@@ -6275,6 +6275,7 @@ CREATE PROCEDURE `proc_fix_nuevo_devengados`()
 
 BEGIN
 
+
 UPDATE `creditos_plan_de_pagos` 
 SET
 `gtoscbza`= 0,
@@ -6318,7 +6319,64 @@ GROUP BY `vw_letras_calculo`.`credito`, `vw_letras_calculo`.`parcialidad`
 );
 
 
+-- Eliminar Estadisticos Vacios.
+
+DELETE `operaciones_recibos`
+FROM `operaciones_recibos`
+        LEFT JOIN
+    `vw_recibos_eliminables` ON `vw_recibos_eliminables`.`recibo` = `operaciones_recibos`.`idoperaciones_recibos`
+WHERE
+    `vw_recibos_eliminables`.`operaciones` <=0;
+    
+-- crear estadisticos de interes
+
+CALL `proc_crear_recibos_devegados`();
+
+
 
 END$$
 
 DELIMITER ;
+
+
+
+
+-- --------------------------------
+-- - Procedimiento crear recibo de Devengados
+-- - Octubre - 2022
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `proc_crear_recibos_devegados`$$
+
+CREATE PROCEDURE `proc_crear_recibos_devegados`()
+
+BEGIN
+
+INSERT INTO `operaciones_recibos` 
+(`idoperaciones_recibos`, `fecha_operacion`, `numero_socio`, `docto_afectado`,
+`tipo_docto`, `total_operacion`, `idusuario`, `observacion_recibo`, `cheque_afectador`, 
+`cadena_distributiva`, `tipo_pago`, `indice_origen`, `grupo_asociado`, `recibo_fiscal`, `sucursal`, `eacp`, `clave_de_moneda`,
+`unidades_en_moneda`, `origen_aml`, `archivo_fisico`, `persona_asociada`, `fecha_de_registro`, `periodo_de_documento`, `cuenta_bancaria`, 
+`montohist`, `tiempo`, `idtipocbza`, `idusuario_cbza`, `fecha_valor`, `f_ext`, `modified_at`, `fecha_caja`) 
+
+(SELECT NULL, `creditos_solicitud`.`fecha_ministracion`, `creditos_solicitud`.`numero_socio`,`creditos_solicitud`.`numero_solicitud`,
+51,0,1,'', '',
+'', 'ninguno',99,99,'',`creditos_solicitud`.`sucursal`,'EACP', 'MXN',
+0,0,'', 1,`creditos_solicitud`.`fecha_ministracion`,0,0,
+0, UNIX_TIMESTAMP(),1,1, `creditos_solicitud`.`fecha_ministracion`,'', CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+FROM `creditos_solicitud`
+LEFT JOIN (
+SELECT COUNT(`idoperaciones_recibos`) AS `existentes`, `docto_afectado` AS `credito` FROM `operaciones_recibos`
+WHERE `tipo_docto`=51 GROUP BY `docto_afectado`,`tipo_docto`
+) TX ON TX.`credito` = `creditos_solicitud`.`numero_solicitud`
+WHERE TX.`credito` IS NULL
+);
+
+
+END$$
+
+DELIMITER ;
+
+

@@ -3069,3 +3069,36 @@ ORDER BY `tmp_personas_geografia`.`persona` DESC
 ;$$
 
 DELIMITER ;
+
+
+
+-- - --------------------------------
+-- - Vista Recibos vacios eliminables
+-- - Oct / 2022
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP VIEW IF EXISTS `vw_recibos_eliminables`$$
+DROP TABLE IF EXISTS `vw_recibos_eliminables`$$
+
+CREATE
+    VIEW `vw_recibos_eliminables` 
+    AS
+
+SELECT   `operaciones_recibos`.`idoperaciones_recibos` AS `recibo`,
+         COUNT( `operaciones_mvtos`.`idoperaciones_mvtos` )  AS `operaciones`
+FROM     `operaciones_recibos`
+LEFT JOIN `operaciones_mvtos` ON `operaciones_mvtos`.`recibo_afectado` = `operaciones_recibos`.`idoperaciones_recibos` 
+WHERE    ( `operaciones_recibos`.`tipo_docto` = 10 )
+GROUP BY `operaciones_recibos`.`idoperaciones_recibos`
+HAVING operaciones = 0
+
+
+;$$
+
+DELIMITER ;
+
+
+
+
