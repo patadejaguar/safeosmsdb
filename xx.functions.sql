@@ -6330,8 +6330,11 @@ WHERE
     
 -- crear estadisticos de interes
 
-CALL `proc_crear_recibos_devegados`();
+CALL `proc_crear_recibos_devengados`();
 
+-- crear Intereses Moratorio
+
+CALL `proc_crear_cargos_devengados`();
 
 
 END$$
@@ -6348,9 +6351,9 @@ DELIMITER ;
 
 DELIMITER $$
 
-DROP PROCEDURE IF EXISTS `proc_crear_recibos_devegados`$$
+DROP PROCEDURE IF EXISTS `proc_crear_recibos_devengados`$$
 
-CREATE PROCEDURE `proc_crear_recibos_devegados`()
+CREATE PROCEDURE `proc_crear_recibos_devengados`()
 
 BEGIN
 
@@ -6378,5 +6381,89 @@ WHERE TX.`credito` IS NULL
 END$$
 
 DELIMITER ;
+
+
+
+-- --------------------------------
+-- - Procedimiento crear Devengados, Mora y Gastos de Cobranza
+-- - Octubre - 2022
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `proc_crear_cargos_devengados`$$
+
+CREATE PROCEDURE `proc_crear_cargos_devengados`()
+
+BEGIN
+
+-- Crear Cargos de Mora
+
+
+INSERT INTO `operaciones_mvtos` 
+	(`idoperaciones_mvtos`, `fecha_operacion`, `fecha_afectacion`, `recibo_afectado`, `socio_afectado`, `docto_afectado`, `tipo_operacion`, `afectacion_real`, `valor_afectacion`, 
+	`fecha_vcto`, `estatus_mvto`, `periodo_socio`, `saldo_anterior`, `saldo_actual`, `idusuario`, `afectacion_estadistica`, `codigo_eacp`, `sucursal`)
+	(SELECT NULL, CURDATE(), CURDATE(), RRO.`recibo`, `persona`, `credito`, 432, `interes_moratorio`, 1, 
+	CURDATE(), 30, `periodo_socio`, `interes_moratorio`, `interes_moratorio`, 1, `interes_moratorio`, CS.`eacp`, CS.`sucursal` 
+	FROM `vw_letras_calculo`
+	INNER JOIN (
+		SELECT   `operaciones_recibos`.`idoperaciones_recibos` AS `recibo`,
+			 `operaciones_recibos`.`docto_afectado` AS `recibo_credito`
+		FROM     `operaciones_recibos`
+		WHERE    ( `operaciones_recibos`.`tipo_docto` = 51 )
+	) RRO ON  RRO.`recibo_credito` = `vw_letras_calculo`.`credito`
+	INNER JOIN `creditos_solicitud` CS ON CS.`numero_solicitud`=`vw_letras_calculo`.`credito`
+	LEFT JOIN (
+		SELECT COUNT(`idoperaciones_mvtos`) AS `operaciones`, `docto_afectado` AS `operacion_credito` FROM `operaciones_mvtos` WHERE `tipo_operacion`=432 AND `fecha_operacion`=CURDATE() GROUP BY `docto_afectado`
+	) ROPS ON ROPS.`operacion_credito` = `vw_letras_calculo`.`credito`
+	WHERE ROPS.`operaciones` IS NULL
+	);
+	
+
+-- Crear Cargos de Cobranza
+
+
+END$$
+
+DELIMITER ;
+
+
+
+-- --------------------------------
+-- - Funcion devuelve los gastos de cobranza por letra con frecuencia, MontoMensual, Fecha de Letra, Fecha De Corte
+-- - Noviembre/2022
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getMontoDeGtosCbzaPorLV2`$$
+
+CREATE FUNCTION `getMontoDeGtosCbzaPorLV2`(mFrecuencia INT(8), mMontoCbza DOUBLE(10,2), mFechaLetra DATE, mFechaCorte DATE) RETURNS DOUBLE(12,2)
+BEGIN
+	-- DECLARE NumMeses INT(4) DEFAULT 0;
+	DECLARE mFechaVcto DATE;
+	DECLARE mMtoGtos DOUBLE(12,2) DEFAULT 0;
+	
+	-- Obtener fecha de vencimiento por Letra
+	SET mFechaVcto = DATE_ADD(mFechaLetra, INTERVAL 1 DAY);
+	
+	IF mFechaCorte >= mFechaVcto THEN
+
+		IF mFrecuencia = 7 THEN
+			SET mMtoGtos = (mMontoCbza / 4);
+		ELSEIF mFrecuencia = 10 THEN
+			SET mMtoGtos = (mMontoCbza / 3);
+		ELSEIF mFrecuencia = 15 THEN
+			SET mMtoGtos = (mMontoCbza / 2);
+		ELSE
+			SET mMtoGtos = mMontoCbza;
+		END IF;
+	END IF;
+	
+	RETURN mMtoGtos;
+    END$$
+
+DELIMITER ;
+
 
 
