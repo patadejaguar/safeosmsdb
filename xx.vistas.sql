@@ -98,7 +98,7 @@ DROP VIEW IF EXISTS `socios`$$
 DROP TABLE IF EXISTS `socios`$$
 
 CREATE VIEW `socios` AS (select `socios_general`.`codigo` AS `codigo`,
-TRIM(CONCAT(`socios_general`.`nombrecompleto`,_utf8' ',`socios_general`.`apellidopaterno`,_utf8' ',`socios_general`.`apellidomaterno`)) AS `nombre`,
+TRIM(CONCAT(`socios_general`.`nombrecompleto`, ' ',`socios_general`.`apellidopaterno`, ' ',`socios_general`.`apellidomaterno`)) AS `nombre`,
 `socios_general`.`cajalocal` AS `numero_caja_local`, `socios_general`.`dependencia` 
 AS `iddependencia`,
 `socios_aeconomica_dependencias`.`nombre_corto` AS `dependencia`,
@@ -109,7 +109,8 @@ AS `iddependencia`,
 `socios_general`.`grupo_solidario`  AS 'grupo',
 	`socios_general`.`correo_electronico`,
 	`socios_general`.`telefono_principal` AS `telefono` ,
-	`socios_general`.`sucursal` AS `sucursal`,TIMESTAMPDIFF(YEAR, `socios_general`.`fechanacimiento`, CURDATE()) AS `edad`
+	`socios_general`.`sucursal` AS `sucursal`,TIMESTAMPDIFF(YEAR, `socios_general`.`fechanacimiento`, CURDATE()) AS `edad`,
+	TRIM(CONCAT(`socios_general`.`apellidopaterno`, ' ',`socios_general`.`apellidomaterno`, ' ',`socios_general`.`nombrecompleto`)) AS `nombre_por_apellidos`
 FROM
 	`socios_general` `socios_general` 
 		INNER JOIN `socios_genero` `socios_genero` 
@@ -1672,7 +1673,8 @@ AS `iddependencia`,
 
 	`socios_figura_juridica`.`descripcion_figura_juridica` AS `figura_juridica`,
 	`socios_general`.`sucursal` AS `sucursal`,TIMESTAMPDIFF(YEAR, `socios_general`.`fechanacimiento`, CURDATE()) AS `edad`,
-	`personas_xclasificacion`.`descripcion_xclasificacion` AS `xclasificacion`
+	`personas_xclasificacion`.`descripcion_xclasificacion` AS `xclasificacion`,
+	TRIM(CONCAT(`socios_general`.`apellidopaterno`, ' ',`socios_general`.`apellidomaterno`, ' ',`socios_general`.`nombrecompleto`)) AS `nombre_por_apellidos`
 FROM     `socios_general` 
 INNER JOIN `socios_aeconomica_dependencias`  ON `socios_general`.`dependencia` = `socios_aeconomica_dependencias`.`idsocios_aeconomica_dependencias` 
 INNER JOIN `socios_tipoingreso`  ON `socios_general`.`tipoingreso` = `socios_tipoingreso`.`idsocios_tipoingreso` 
@@ -2654,7 +2656,9 @@ CDC.`cuentas_comerciales`,
 CDC.`suma_cuentas_activas`,
 CDC.`suma_cuentas_comerciales`,
 TOPT.`nombre_origen` 							AS `origen`,
-CDP.`maximo_autorizado`
+CDP.`maximo_autorizado`,
+
+TRIM(CONCAT(`socios_general`.`apellidopaterno`, ' ',`socios_general`.`apellidomaterno`, ' ',`socios_general`.`nombrecompleto`)) AS `nombre_por_apellidos`
 	
 FROM     `socios_general` 
 INNER JOIN `socios_aeconomica_dependencias` AS SAD  ON `socios_general`.`dependencia` = SAD.`idsocios_aeconomica_dependencias` 
