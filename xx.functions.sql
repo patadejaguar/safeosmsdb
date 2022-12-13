@@ -320,7 +320,7 @@ DELIMITER $$
 
 DROP FUNCTION IF EXISTS `setNoMenorCero`$$
 
-CREATE FUNCTION `setNoMenorCero`(mCantidad FLOAT(16,2) ) RETURNS FLOAT(16,2)
+CREATE FUNCTION `setNoMenorCero`(mCantidad DOUBLE(18,2) ) RETURNS DOUBLE(18,2)
 BEGIN
 	IF (mCantidad < 0) THEN
 		RETURN 0;
@@ -743,8 +743,11 @@ ORDER BY `eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,`operacion
     END$$
 
 DELIMITER ;
+
+
 -- --------------------------------------- Listado de Ingresos
 -- TODO: Modificar esta seccion
+-- - 2022-sept se cambia a call del proc de datos bancarios.
 DELIMITER $$
 DROP PROCEDURE IF EXISTS `proc_listado_de_ingresos`$$
 
@@ -753,17 +756,7 @@ BEGIN
 
 UPDATE `operaciones_recibos` SET persona_asociada = getEmpresaPorDefecto() WHERE persona_asociada < getEmpresaPorDefecto();
 
-DROP TABLE IF EXISTS `tmp_recibos_datos_bancarios`;
-
-CREATE TABLE `tmp_recibos_datos_bancarios` AS SELECT
-  `bancos_operaciones`.`recibo_relacionado` AS `recibo`,
-  COUNT(`bancos_operaciones`.`idcontrol`)   AS `operaciones`,
-  MAX(`bancos_operaciones`.`cuenta_bancaria`) AS `banco`,
-  MAX(`bancos_operaciones`.`fecha_expedicion`) AS `fecha`,
-  SUM(`bancos_operaciones`.`monto_real`)    AS `monto`
-FROM `bancos_operaciones`
-GROUP BY `bancos_operaciones`.`recibo_relacionado`;
-ALTER TABLE `tmp_recibos_datos_bancarios` ADD INDEX `indexm` (`recibo` ASC, `banco` ASC);
+CALL `proc_recs_datos_bancarios`();
 
 -- DROP VIEW IF EXISTS `listado_de_ingresos`;
 DROP TABLE IF EXISTS `listado_de_ingresos`;
@@ -792,9 +785,13 @@ SELECT
 	`creditos_solicitud`.`periocidad_de_pago`      AS `periocidad`,
 `tmp_recibos_datos_bancarios`.`banco`,
 
-`creditos_solicitud`.`oficial_seguimiento` AS `oficial_de_seguimiento`,
-`creditos_solicitud`.`oficial_credito`     AS `oficial_de_credito`,
-`operaciones_recibos`.`persona_asociada`            AS `persona_asociada`
+`creditos_solicitud`.`oficial_seguimiento` 		AS `oficial_de_seguimiento`,
+`creditos_solicitud`.`oficial_credito`     		AS `oficial_de_credito`,
+`operaciones_recibos`.`persona_asociada`		AS `persona_asociada`,
+
+`operaciones_recibos`.`recibo_fiscal` 			AS `folio`,
+`operaciones_recibos`.`cheque_afectador` 		AS `referencia`,
+DATE(`operaciones_recibos`.`fecha_caja`)		AS `fecha_de_caja`
 
 FROM 
 
@@ -1598,6 +1595,7 @@ SELECT
 		SUM(IF((`tipo_operacion` = 412  AND `fecha_afectacion` > PRM.`fecha_corte`),`afectacion_real`,0)) 								AS `ahorro_nopagado`,
 		SUM(IF(((`tipo_operacion` < 410 OR `tipo_operacion` > 413)  AND `fecha_afectacion` > PRM.`fecha_corte`) , `afectacion_real`,0)) AS `otros_nopagado`
 		,IF((`tipo_operacion` = 410 AND `periodo_socio`= (`creditos_solicitud`.`ultimo_periodo_afectado`+1)),  MMC.`cargos_cbza`,0) 	AS `gastos_de_cobranza`
+		,IF((`tipo_operacion` = 410 AND `periodo_socio`= (`creditos_solicitud`.`ultimo_periodo_afectado`+1)), ROUND(MMC.`cargos_cbza`*PRM.`tasa_iva`,2),0) 	AS `iva_gtos_cobranza`
 
 		FROM
 			`operaciones_mvtos` `operaciones_mvtos` 
@@ -1771,9 +1769,11 @@ SELECT
 		ROUND((`creditos_solicitud`.`tasa_interes`*100),2)   AS `tasa_de_interes` ,
 
 		DATEDIFF(PRM.`fecha_corte`, `letras`.`fecha_de_pago`) AS `dias`,
-		`letras`.`interes_moratorio` AS `mora`,
-		`letras`.`interes_moratorio` AS  `interes_moratorio`,
-		`letras`.`iva_moratorio` AS `iva_moratorio`
+		`letras`.`interes_moratorio` 		AS `mora`,
+		`letras`.`interes_moratorio` 		AS `interes_moratorio`,
+		`letras`.`iva_moratorio` 			AS `iva_moratorio`,
+		`letras`.`gastos_de_cobranza` 		AS `gastos_de_cobranza`,
+		`letras`.`iva_gtos_cobranza` 		AS `iva_gtos_cobranza`
 		
 FROM
 	`letras` `letras` 
@@ -1803,8 +1803,11 @@ CREATE TABLE IF NOT EXISTS `creditos_letras_del_dia` (
 	`tasa_de_interes` double ,
 	`dias` int (7),
 	`mora` double ,
-	`iva_moratorio` double 
+	`iva_moratorio` double,
+	`gastos_de_cobranza` double,
+	`iva_gtos_cobranza` double
 ); 
+
 
 	ALTER TABLE `creditos_letras_del_dia` ADD COLUMN `indice` INT(10) NOT NULL AUTO_INCREMENT AFTER `credito`, ADD PRIMARY KEY (`indice`);
 	ALTER TABLE `creditos_letras_del_dia` ADD INDEX `personacredito` (`persona`, `credito`,`parcialidad`) ;
@@ -3018,16 +3021,27 @@ SUM(IF((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_
 ROUND(SUM((`operaciones_mvtos`.`afectacion_real` * `eacp_config_bases_de_integracion_miembros`.`afectacion`)),2) AS `letra`,
 
 
-SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()) ,`operaciones_mvtos`.`afectacion_real`,0)) AS `capital_exigible`,
-SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 411 AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()),`operaciones_mvtos`.`afectacion_real`,0)) AS `interes_exigible`,
-SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 413  AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()),`operaciones_mvtos`.`afectacion_real`,0)) AS `iva_exigible`,
-SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 412  AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()),`operaciones_mvtos`.`afectacion_real`,0)) AS `ahorro_exigible`,
-SUM(IF(((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413)  AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()) , `operaciones_mvtos`.`afectacion_real`,0)) AS `otros_exigible`,
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`) ,`operaciones_mvtos`.`afectacion_real`,0)) AS `capital_exigible`,
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 411 AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `interes_exigible`,
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 413  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `iva_exigible`,
+SUM(IF((`operaciones_mvtos`.`tipo_operacion` = 412  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),`operaciones_mvtos`.`afectacion_real`,0)) AS `ahorro_exigible`,
+SUM(IF(((`operaciones_mvtos`.`tipo_operacion` < 410 OR `operaciones_mvtos`.`tipo_operacion` > 413)  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`) , `operaciones_mvtos`.`afectacion_real`,0)) AS `otros_exigible`,
 
 ROUND(SUM(
-IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < getFechaDeCorte()),
-((`operaciones_mvtos`.`afectacion_real` * DATEDIFF(getFechaDeCorte(), `operaciones_mvtos`.`fecha_afectacion`) * (`creditos_solicitud`.`tasa_moratorio` + `creditos_solicitud`.`tasa_interes`) ) / getDivisorDeInteres())
+IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),
+((`operaciones_mvtos`.`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`) 
+* (`creditos_solicitud`.`tasa_moratorio`) ) / PRM.`divisor_interes`)
 , 0 )),2) AS `interes_moratorio`,
+
+SUM(
+IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` < PRM.`fecha_corte`),
+(DATEDIFF(PRM.`fecha_corte`, `operaciones_mvtos`.`fecha_afectacion`)), 0)) AS `dias_moratorio`,
+
+SUM(
+IF((`operaciones_mvtos`.`tipo_operacion` = 410  AND `operaciones_mvtos`.`fecha_afectacion` <= PRM.`fecha_corte`),
+1, 0)) AS `periodo_vencido`,
+
+
 
 	`creditos_solicitud`.`monto_solicitado` AS `monto_original`,
 	`creditos_solicitud`.`saldo_actual`     AS `saldo_principal` 
@@ -3042,32 +3056,38 @@ FROM
 			`eacp_config_bases_de_integracion_miembros` 
 			ON `operaciones_mvtos`.`tipo_operacion` = 
 			`eacp_config_bases_de_integracion_miembros`.`miembro`
-			
+INNER JOIN ( SELECT getTasaIVAGeneral() AS `tasa_iva`, getDivisorDeInteres() AS `divisor_interes`,getFechaDeCorte() AS  `fecha_corte`) PRM			
      
 WHERE (`eacp_config_bases_de_integracion_miembros`.`codigo_de_base` = 2601)
 AND `operaciones_mvtos`.`tipo_operacion` != 420 
 AND `operaciones_mvtos`.`tipo_operacion` != 431
-AND `creditos_solicitud`.`saldo_actual`  > 0
+AND `creditos_solicitud`.`saldo_actual`  > 0.09
 GROUP BY `operaciones_mvtos`.`periodo_socio`, `operaciones_mvtos`.`docto_afectado`
 ORDER BY `eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,`operaciones_mvtos`.`docto_afectado`
 ) ;
 
 ALTER TABLE `tmp_creds_prox_letras` ADD COLUMN `indice` INT(10) NOT NULL AUTO_INCREMENT AFTER `saldo_principal`, ADD PRIMARY KEY (`indice`);
 ALTER TABLE `tmp_creds_prox_letras` ADD INDEX `creditoletra` (`docto_afectado` ASC, `periodo_socio` ASC)  COMMENT '',ADD INDEX `idpersona` (`socio_afectado` ASC)  COMMENT '';
-ALTER TABLE `tmp_creds_prox_letras` CHANGE `letra` `letra` DOUBLE(19,2) NULL, CHANGE `interes_moratorio` `interes_moratorio` DOUBLE(19,2) NULL; 
+ALTER TABLE `tmp_creds_prox_letras` CHANGE `letra` `letra` DOUBLE(19,2) NULL, CHANGE `interes_moratorio` `interes_moratorio` DOUBLE(19,2) NULL;
+
+-- add jun/2022
+DELETE FROM `tmp_creds_prox_letras` WHERE `letra`<=0;
+
 END$$
 
 DELIMITER ;
 
 
-
--- -- Letras de recibos bancarios .- Actualizado Agosto/2016
--- -- 
+-- -- ---------------------------------------------------------
+-- -- Letras de recibos bancarios .- Actualizado Sept/2022
+-- -- ---------------------------------------------------------
 DELIMITER $$
 DROP PROCEDURE IF EXISTS `proc_recs_datos_bancarios`$$
 
 CREATE PROCEDURE `proc_recs_datos_bancarios`()
 BEGIN
+
+DECLARE vModCajaAct BOOLEAN DEFAULT FALSE;
 
 DROP TABLE IF EXISTS `tmp_recibos_datos_bancarios`;
 
@@ -3082,6 +3102,20 @@ GROUP BY `bancos_operaciones`.`recibo_relacionado`
 ) ;
 
 ALTER TABLE `tmp_recibos_datos_bancarios` ADD INDEX `indexm` (`recibo` ASC, `banco` ASC);
+
+-- valida si el modulo de caja esta activo, si no, inserta desde los datos del recibo en su misma tabla
+
+SET vModCajaAct = getEsModActivo("caja");
+
+IF vModCajaAct = FALSE THEN
+
+INSERT INTO `tmp_recibos_datos_bancarios`(`recibo`,`operaciones`,`banco`,`fecha`,`monto`)
+(SELECT `idoperaciones_recibos`,1,`cuenta_bancaria`,DATE(`fecha_caja`),`total_operacion` FROM `operaciones_recibos`
+LEFT OUTER JOIN `tmp_recibos_datos_bancarios` TTDB ON TTDB.`recibo`= `idoperaciones_recibos` WHERE TTDB.`operaciones` IS NULL);
+
+END IF;
+
+
 END$$
 
 DELIMITER ;
@@ -4329,10 +4363,15 @@ BEGIN
 	DECLARE Nombre VARCHAR(150) DEFAULT "";
 	DECLARE Correo VARCHAR(50) DEFAULT "";
 	DECLARE Telefono VARCHAR(20) DEFAULT "";
-
+	DECLARE IdPersona BIGINT(20) DEFAULT (SELECT `numero_socio` FROM `creditos_solicitud` WHERE `numero_solicitud`=IdCredito LIMIT 0,1);
+	
 	DECLARE cur1 CURSOR FOR SELECT `personas`.`nombre`, `personas`.`correo_electronico`, `personas`.`telefono`
 	FROM `socios_relaciones` INNER JOIN `socios_relacionestipos`  ON `socios_relaciones`.`tipo_relacion` = `socios_relacionestipos`.`idsocios_relacionestipos` 
-	INNER JOIN `personas`  ON `socios_relaciones`.`numero_socio` = `personas`.`codigo` WHERE ( `socios_relacionestipos`.`subclasificacion` = 5 ) AND ( `socios_relaciones`.`credito_relacionado` = IdCredito );
+	INNER JOIN `personas`  ON `socios_relaciones`.`numero_socio` = `personas`.`codigo` WHERE ( `socios_relacionestipos`.`subclasificacion` = 5 ) AND ( `socios_relaciones`.`credito_relacionado` = IdCredito )
+	UNION SELECT `personas`.`nombre`, `personas`.`correo_electronico`, `personas`.`telefono`
+	FROM `socios_relaciones` INNER JOIN `socios_relacionestipos`  ON `socios_relaciones`.`tipo_relacion` = `socios_relacionestipos`.`idsocios_relacionestipos` 
+	INNER JOIN `personas`  ON `socios_relaciones`.`numero_socio` = `personas`.`codigo` WHERE ( `socios_relacionestipos`.`subclasificacion` = 5 ) AND ( `socios_relaciones`.`credito_relacionado` = 1 ) AND ( `socios_relaciones`.`socio_relacionado` = IdPersona );
+	
 	
 	DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
 
@@ -4368,6 +4407,7 @@ RETURN mStr;
 END$$
 
 DELIMITER ;
+
 
 
 -- --------------------------------
@@ -4495,7 +4535,7 @@ END$$
 
 
 -- --------------------------------
--- - Funcion devuelve los gastos de cobranza por mes, echale financiamiento
+-- - Funcion devuelve los gastos de cobranza por mes, echale financiera
 -- - Febrero/2020
 -- - --------------------------------
 
@@ -4512,6 +4552,8 @@ BEGIN
 	 
 	IF ISNULL(NumMeses) THEN
 		SET NumMeses = 0;
+	ELSE
+		SET NumMeses = NumMeses + 1;
 	END IF;
 	
 	SET MtoGtos = 300 * NumMeses;
@@ -5563,4 +5605,865 @@ read_loop: LOOP
 END$$
 
 DELIMITER ;
+
+
+-- --------------------------------
+-- - Funcion que obtiene el titulo de los niveles por valor
+-- - Julio/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getNombrePermsByStr`$$
+
+CREATE FUNCTION `getNombrePermsByStr`(vPerms VARCHAR(200)) RETURNS VARCHAR(254)
+BEGIN
+	DECLARE vCleanPerms 	VARCHAR(200) DEFAULT '';
+	DECLARE vId 		VARCHAR(10) DEFAULT '';
+	DECLARE vNPerms 	VARCHAR(254) DEFAULT '';
+	DECLARE vTPerms		VARCHAR(20) DEFAULT '';
+	DECLARE vCount		INT(4) DEFAULT 1;
+	
+	SET vCleanPerms 	= REPLACE(vPerms, '@rw', '');
+
+	WHILE (LOCATE(',', vCleanPerms) > 0)
+	DO
+	    SET vId 		= SUBSTRING_INDEX(vCleanPerms,',',vCount);    
+	    
+	    SET vTPerms 	= (SELECT `nivel_alias` FROM `general_niveles` WHERE `idgeneral_niveles`=vId AND `estatus`=1 LIMIT 0,1);
+	    
+	    IF ISNULL(vTPerms) THEN 
+	    
+		SET vTPerms	= '';
+	    ELSE
+	    
+	    	IF vNPerms = '' THEN
+				SET vNPerms	= vTPerms;
+		    ELSE
+				SET vNPerms	= CONCAT(vNPerms, ', ', vTPerms);
+		    END IF;
+
+	    END IF;
+
+		SET vCleanPerms 	= SUBSTRING(vCleanPerms, LOCATE(',',vCleanPerms) + 1);
+		SET vCount		= vCount + 1;
+
+
+	    
+	END WHILE;
+
+
+
+	RETURN vNPerms;
+
+    END$$
+
+DELIMITER ;
+
+
+-- --------------------------------
+-- - Procedimiento Perfil de Avisos por Persona
+-- - Agosto/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `proc_crear_perfilaviso_per`$$
+
+CREATE PROCEDURE `proc_crear_perfilaviso_per`(IDPersona BIGINT(20))
+
+BEGIN
+
+
+DECLARE vSucursal			VARCHAR(20) DEFAULT 'matriz';
+
+DECLARE vExist1				INT DEFAULT 0;
+DECLARE vExist2				INT DEFAULT 0;
+DECLARE vHorarioI			VARCHAR(10) DEFAULT '';
+DECLARE vHorarioF			VARCHAR(10) DEFAULT '';
+
+
+    SET vSucursal = (SELECT `sucursal` FROM `socios_general` WHERE `codigo`=IDPersona);
+    SET vHorarioI = (SELECT CONCAT(`hora_de_inicio_de_operaciones`,':00') FROM `general_sucursales` WHERE `codigo_sucursal`=vSucursal LIMIT 0,1);
+    SET vHorarioF = (SELECT CONCAT(`hora_de_fin_de_operaciones`,':00') FROM `general_sucursales` WHERE `codigo_sucursal`=vSucursal LIMIT 0,1);
+    
+    SET vExist1 = (SELECT COUNT(*) FROM `personas_perfil_avisos` WHERE `persona`=IDPersona AND `canal_de_envio`='sms');
+    SET vExist2 = (SELECT COUNT(*) FROM `personas_perfil_avisos` WHERE `persona`=IDPersona AND `canal_de_envio`='email');
+    
+    IF vExist1 <=0 THEN
+	INSERT INTO `personas_perfil_avisos` (`persona`,`canal_de_envio`,`horario_inicial`,`horario_final`) VALUES (IDPersona, 'sms', vHorarioI, vHorarioF);
+    END IF;
+
+    IF vExist2 <=0 THEN
+	INSERT INTO `personas_perfil_avisos` (`persona`,`canal_de_envio`,`horario_inicial`,`horario_final`) VALUES (IDPersona, 'email', vHorarioI, vHorarioF);
+    END IF;
+
+
+END$$
+
+DELIMITER ;
+
+
+
+-- --------------------------------
+-- - Procedimiento Fix capital exigible al final del dia
+-- - Agosto/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `proc_fix_credmon_capexig`$$
+
+CREATE PROCEDURE `proc_fix_credmon_capexig`()
+
+BEGIN
+
+
+
+UPDATE `creditos_montos` 
+INNER JOIN (
+
+SELECT
+	`creditos_letras_del_dia`.`credito`,
+	MIN(`creditos_letras_del_dia`.`parcialidad`)		AS `letra_minima`,
+	MAX(`creditos_letras_del_dia`.`parcialidad`)		AS `letra_maxima`,
+	COUNT(`creditos_letras_del_dia`.`indice`)			AS `letra_pends`,
+	MIN(`creditos_letras_del_dia`.`fecha_de_pago`)		AS `fecha_primer_atraso`,
+	MAX(`creditos_letras_del_dia`.`fecha_de_pago`)		AS `fecha_ultimo_atraso`,
+	SUM(`creditos_letras_del_dia`.`capital`)			AS `capital`,
+	SUM(`creditos_letras_del_dia`.`interes`)			AS `interes`,
+	SUM(`creditos_letras_del_dia`.`iva`)				AS `iva`,
+	SUM(`creditos_letras_del_dia`.`ahorro`)				AS `ahorro`,
+	SUM(`creditos_letras_del_dia`.`otros`)				AS `otros`,
+	SUM(`creditos_letras_del_dia`.`letra`)				AS `letra`,
+	SUM(`creditos_letras_del_dia`.`mora`)				AS `moratorio`,
+	SUM(`creditos_letras_del_dia`.`iva_moratorio`)		AS `iva_moratorio`,
+	SUM(`creditos_letras_del_dia`.`dias`)				AS `dias`,
+	SUM(`creditos_letras_del_dia`.`gastos_de_cobranza`)	AS `gastos_de_cobranza`,
+	SUM(`creditos_letras_del_dia`.`iva_gtos_cobranza`)	AS `iva_gtos_cobranza`,
+	`creditos_letras_del_dia`.`tasa_de_mora`,
+	`creditos_letras_del_dia`.`tasa_de_interes`
+	
+FROM
+	`creditos_letras_del_dia` `creditos_letras_del_dia` 
+ -- WHERE (`creditos_letras_del_dia`.`credito` = 20114643) 
+GROUP BY
+	`creditos_letras_del_dia`.`credito`
+) tt ON tt.`credito` = `creditos_montos`.`clave_de_credito` 
+SET `capital_exigible` = tt.`capital`
+WHERE `capital_exigible` != tt.`capital`;
+
+
+
+
+END$$
+
+DELIMITER ;
+
+
+
+-- --------------------------------
+-- - Procedimiento Fix capital exigible por credito
+-- - Agosto/2021
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `proc_fix_cm_ind_capexig`$$
+
+CREATE PROCEDURE `proc_fix_cm_ind_capexig`(IDCredito BIGINT(20))
+
+BEGIN
+
+UPDATE `creditos_montos` 
+INNER JOIN (
+
+SELECT
+	`creditos_letras_del_dia`.`credito`,
+	MIN(`creditos_letras_del_dia`.`parcialidad`)	AS `letra_minima`,
+	MAX(`creditos_letras_del_dia`.`parcialidad`)	AS `letra_maxima`,
+	COUNT(`creditos_letras_del_dia`.`indice`)		AS `letra_pends`,
+	MIN(`creditos_letras_del_dia`.`fecha_de_pago`)	AS `fecha_primer_atraso`,
+	MAX(`creditos_letras_del_dia`.`fecha_de_pago`)	AS `fecha_ultimo_atraso`,
+	SUM(`creditos_letras_del_dia`.`capital`)		AS `capital`,
+	SUM(`creditos_letras_del_dia`.`interes`)		AS `interes`,
+	SUM(`creditos_letras_del_dia`.`iva`)			AS `iva`,
+	SUM(`creditos_letras_del_dia`.`ahorro`)			AS `ahorro`,
+	SUM(`creditos_letras_del_dia`.`otros`)			AS `otros`,
+	SUM(`creditos_letras_del_dia`.`letra`)			AS `letra`,
+	SUM(`creditos_letras_del_dia`.`mora`)			AS `moratorio`,
+	SUM(`creditos_letras_del_dia`.`iva_moratorio`)	AS `iva_moratorio`,
+	SUM(`creditos_letras_del_dia`.`dias`)          		AS `dias`,
+	SUM(`creditos_letras_del_dia`.`gastos_de_cobranza`)	AS `gastos_de_cobranza`,
+	SUM(`creditos_letras_del_dia`.`iva_gtos_cobranza`)	AS `iva_gtos_cobranza`,
+	`creditos_letras_del_dia`.`tasa_de_mora`,
+	`creditos_letras_del_dia`.`tasa_de_interes` 
+FROM
+	`creditos_letras_del_dia` `creditos_letras_del_dia` 
+WHERE (`creditos_letras_del_dia`.`credito` = IDCredito) 
+GROUP BY
+	`creditos_letras_del_dia`.`credito`
+) tt ON tt.`credito` = `creditos_montos`.`clave_de_credito` 
+SET `capital_exigible` = tt.`capital`
+WHERE (`capital_exigible` != tt.`capital`) AND (`creditos_montos`.`clave_de_credito` = IDCredito);
+
+
+END$$
+
+DELIMITER ;
+
+
+
+
+
+
+
+
+
+
+-- -- 
+-- -- Get Clave Numerica de Municipio
+-- -- Marzo / 2022
+-- -- 
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getIdNumericoMunicipio`$$
+
+CREATE FUNCTION `getIdNumericoMunicipio`( IdEE VARCHAR(2), IdMU VARCHAR(6) ) RETURNS INTEGER(8)
+BEGIN
+DECLARE IDD INTEGER(8) DEFAULT '';
+	SET IDD = CAST(CONCAT(LPAD(IdEE,2,0), '', LPAD(IdMU,4,0)) AS UNSIGNED);
+	
+RETURN IDD;
+END$$
+
+DELIMITER ;
+
+-- --------------------------------
+-- - Funcion que remueve acentos
+-- - Mayo/2022
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `setRemoveAccents`$$
+
+CREATE FUNCTION `setRemoveAccents`(vVal VARCHAR(200)) RETURNS VARCHAR(254)
+BEGIN
+	DECLARE str 	VARCHAR(200) DEFAULT '';
+
+	SET str = REPLACE(vVal,'á','a');
+	SET str = REPLACE(str,'Á','A');
+	SET str = REPLACE(str,'é','e');
+	SET str = REPLACE(str,'É','E');
+	SET str = REPLACE(str,'í','i');
+	SET str = REPLACE(str,'Í','I');
+	SET str = REPLACE(str,'í','i');
+	SET str = REPLACE(str,'ó','o');
+	SET str = REPLACE(str,'Ó','O');
+	SET str = REPLACE(str,'ú','u');
+	SET str = REPLACE(str,'Ú','U');
+
+	RETURN str;
+
+    END$$
+
+DELIMITER ;
+
+
+
+-- --------------------------------
+-- - Funcion devuelve los gastos de cobranza por mes, desde mes
+-- - Julio/2022
+-- - TODO: Mejorar esta funcion
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getMtoGtosCbzaMesDesdeF`$$
+
+CREATE FUNCTION `getMtoGtosCbzaMesDesdeF`(FechaVcto DATE, FechaCorte DATE) RETURNS DOUBLE(12,2)
+BEGIN
+	DECLARE NumMeses INT(4) DEFAULT 0;
+	DECLARE MtoGtos DOUBLE(12,2) DEFAULT 0;
+	SET NumMeses = ( SELECT TIMESTAMPDIFF(MONTH, FechaVcto, FechaCorte) );
+	
+	 
+	IF ISNULL(NumMeses) THEN
+		SET NumMeses = 0;
+	ELSE
+		SET NumMeses = NumMeses + 1;
+	END IF;
+	
+	SET MtoGtos = 300 * NumMeses;
+	
+	RETURN MtoGtos;
+    END$$
+
+DELIMITER ;
+
+
+-- --------------------------------
+-- - Funcion devuelve si existe el permiso en el campo por Nivel de Usuario
+-- - Julio/2022
+-- - --------------------------------
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getExistePermisoInStr`$$
+
+CREATE FUNCTION `getExistePermisoInStr`(UserNivel INT, StrPermisos VARCHAR(255)) RETURNS BOOL
+BEGIN
+	DECLARE SiExiste BOOL DEFAULT FALSE;
+	DECLARE StrPerm VARCHAR(6) DEFAULT '';
+	
+	SET StrPerm = CONCAT(UserNivel, "@rw");
+	
+	IF FIND_IN_SET(StrPerm, StrPermisos) > 0 THEN
+		SET SiExiste = TRUE;
+	END IF;
+	
+	RETURN SiExiste;
+	
+	
+    END$$
+
+DELIMITER ;
+
+
+-- --------------------------------
+-- - Funcion devuelve si existe el permiso en el campo por Clave de Usuario, por Tipo de Sistema
+-- - Julio/2022
+-- - --------------------------------
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getExistePermByUserIdTS`$$
+
+CREATE FUNCTION `getExistePermByUserIdTS`(UserId INT, StrPermisos VARCHAR(255)) RETURNS BOOL
+BEGIN
+	DECLARE UsrTipoSistema INT DEFAULT 0;
+	DECLARE SiExiste BOOL DEFAULT FALSE;
+	
+	SET UsrTipoSistema = (SELECT `general_niveles`.`tipo_sistema` FROM `general_niveles` INNER JOIN `t_03f996214fba4a1d05a68b18fece8e71`  ON `general_niveles`.`idgeneral_niveles` = `t_03f996214fba4a1d05a68b18fece8e71`.`f_f2cd801e90b78ef4dc673a4659c1482d` WHERE ( `t_03f996214fba4a1d05a68b18fece8e71`.`idusuarios` = UserId ) LIMIT 0,1);
+	SET SiExiste = getExistePermisoInStr(UserId, StrPermisos);
+
+	RETURN SiExiste;
+	
+	
+    END$$
+
+DELIMITER ;
+
+-- --------------------------------
+-- - Funcion devuelve si existe el permiso en el campo por Clave de Usuario, por Tipo de Usuario
+-- - Julio/2022
+-- - --------------------------------
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getExistePermByUserIdTU`$$
+
+CREATE FUNCTION `getExistePermByUserIdTU`(UserId INT, StrPermisos VARCHAR(255)) RETURNS BOOL
+BEGIN
+	DECLARE UsrTipoSistema INT DEFAULT 0;
+	DECLARE SiExiste BOOL DEFAULT FALSE;
+	
+	SET UsrTipoSistema = (SELECT `f_f2cd801e90b78ef4dc673a4659c1482d` FROM `t_03f996214fba4a1d05a68b18fece8e71` WHERE (`idusuarios` = UserId ) LIMIT 0,1);
+	SET SiExiste = getExistePermisoInStr(UserId, StrPermisos);
+
+	RETURN SiExiste;
+	
+	
+    END$$
+
+DELIMITER ;
+
+DELIMITER $$
+
+-- --------------------------------
+-- - Funcion devuelve La fecha en un formato dateTime
+-- - Julio/2022
+-- - --------------------------------
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getFechaTiempoMXByInt`$$
+
+CREATE FUNCTION `getFechaTiempoMXByInt`(mFecha BIGINT) RETURNS VARCHAR(25)
+BEGIN
+	RETURN DATE_FORMAT(FROM_UNIXTIME(mFecha), "%d/%b/%y %H:%i %p");
+    END$$
+
+DELIMITER ;
+
+
+-- - --------------------------------
+-- - Funcion que devuelve un parametro del sistema
+-- - Oct/2022
+-- - --------------------------------
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getParametroDeSistema`$$
+
+CREATE FUNCTION `getParametroDeSistema`( vNombre VARCHAR(80) ) RETURNS VARCHAR(200)
+BEGIN
+DECLARE mVal VARCHAR(200) DEFAULT '';
+	SET mVal = (SELECT `valor_del_parametro` FROM `entidad_configuracion` WHERE `nombre_del_parametro`=vNombre LIMIT 0,1); 
+	
+	IF ISNULL(mVal) THEN
+		SET mVal = '';
+	END IF;
+
+	RETURN mVal;
+END$$
+
+DELIMITER ;
+
+-- - --------------------------------
+-- - Funcion que devuelve si un modulo esta activo
+-- - Oct/2022
+-- - TODO: Faltan modulos
+-- - --------------------------------
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getEsModActivo`$$
+
+CREATE FUNCTION `getEsModActivo`( vNombre VARCHAR(25) ) RETURNS BOOLEAN
+BEGIN
+DECLARE mVal BOOLEAN DEFAULT TRUE;
+DECLARE nVal VARCHAR(60) DEFAULT '';
+
+	IF vNombre = "caja"  THEN
+		SET nVal = LOWER(getParametroDeSistema("modulo_de_caja_activado"));
+	END IF;
+	
+	IF nVal = "no" OR nVal = "0" OR nVal = "false" THEN
+		SET mVal = FALSE;
+	END IF;
+	
+
+	RETURN mVal;
+END$$
+
+DELIMITER ;
+
+
+
+-- --------------------------------
+-- - Procedimiento Fix montos cuando no se devengan credito
+-- - Octubre 2022
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `proc_fix_cierre_devengados`$$
+
+CREATE PROCEDURE `proc_fix_cierre_devengados`()
+
+BEGIN
+
+-- Actualizar Intereses Devengados y pagados
+
+UPDATE `creditos_montos` 
+INNER JOIN (
+
+SELECT   `tmp_creditos_abonos_parciales`.`docto_afectado` AS `credito`,
+         SUM(`tmp_creditos_abonos_parciales`.`capital` )  AS `capital`,
+         SUM(`tmp_creditos_abonos_parciales`.`interes_normal` )  AS `interes`,
+         SUM(`tmp_creditos_abonos_parciales`.`interes_moratorio` )  AS `moratorio`,
+         SUM(`tmp_creditos_abonos_parciales`.`otros` )  AS `otros`
+FROM     `tmp_creditos_abonos_parciales`
+GROUP BY `tmp_creditos_abonos_parciales`.`docto_afectado`
+) tt ON tt.`credito` = `creditos_montos`.`clave_de_credito` 
+SET
+`interes_n_dev` = tt.`interes`, 
+`interes_n_pag` = tt.`interes`,
+`interes_m_dev`= tt.`moratorio`,
+`interes_m_pag` = tt.`moratorio`;
+
+
+
+UPDATE `creditos_solicitud` 
+INNER JOIN (
+
+SELECT   `tmp_creditos_abonos_parciales`.`docto_afectado` AS `credito`,
+         SUM(`tmp_creditos_abonos_parciales`.`capital` )  AS `capital`,
+         SUM(`tmp_creditos_abonos_parciales`.`interes_normal` )  AS `interes`,
+         SUM(`tmp_creditos_abonos_parciales`.`interes_moratorio` )  AS `moratorio`,
+         SUM(`tmp_creditos_abonos_parciales`.`otros` )  AS `otros`
+FROM     `tmp_creditos_abonos_parciales`
+GROUP BY `tmp_creditos_abonos_parciales`.`docto_afectado`
+) tt ON tt.`credito` = `creditos_solicitud`.`numero_solicitud` 
+SET
+`interes_normal_devengado` = tt.`interes`, 
+`interes_normal_pagado` = tt.`interes`,
+`interes_moratorio_devengado`= tt.`moratorio`,
+`interes_moratorio_pagado` = tt.`moratorio`;
+
+-- Actualizar Interes normal
+
+
+UPDATE `creditos_montos` 
+INNER JOIN (
+
+SELECT   `tmp_creds_prox_letras`.`docto_afectado` AS `credito`,
+         SUM(`tmp_creds_prox_letras`.`interes_exigible` )  AS `interes`,
+         SUM(`tmp_creds_prox_letras`.`interes_moratorio` )  AS `moratorio`,
+         SUM(`tmp_creds_prox_letras`.`periodo_vencido`) AS `periodos_vencidos`,
+         SUM(`tmp_creds_prox_letras`.`capital_exigible`) AS `cap_exigible`
+FROM     `tmp_creds_prox_letras`
+GROUP BY `credito`
+
+) tt ON tt.`credito` = `creditos_montos`.`clave_de_credito` 
+SET
+
+`interes_n_corr` = tt.`interes`, 
+`interes_m_corr` = tt.`moratorio`,
+`periodo_pends`	= tt.`periodos_vencidos`,
+`capital_exigible` = tt.`cap_exigible`;
+
+
+END$$
+
+DELIMITER ;
+
+-- -- 
+-- -- Actualiza la consulta de pagos por un credito
+-- -- Octubre 2022
+-- -- se debe actualizar conforme a proc_creditos_abonos_parciales
+-- -- 
+DELIMITER $$
+DROP PROCEDURE IF EXISTS `proc_credito_ab_parcs_by_cred`$$
+
+CREATE PROCEDURE `proc_credito_ab_parcs_by_cred`(IDCredito BIGINT)
+BEGIN
+
+DELETE FROM `tmp_creditos_abonos_parciales` WHERE `docto_afectado`= IDCredito;
+
+INSERT INTO `tmp_creditos_abonos_parciales` ( 
+
+SELECT
+  `eacp_config_bases_de_integracion_miembros`.`codigo_de_base` AS `codigo_de_base`,
+  `operaciones_mvtos`.`socio_afectado`                         AS `socio_afectado`,
+  `operaciones_mvtos`.`docto_afectado`                         AS `docto_afectado`,
+  `operaciones_mvtos`.`periodo_socio`                          AS `periodo_socio`,
+  MAX(`operaciones_mvtos`.`fecha_afectacion`)                  AS `fecha_de_pago`,
+  MAX(`operaciones_mvtos`.`fecha_vcto`)                        AS `fecha_de_vencimiento`,
+  SUM((CASE WHEN (`subclasificacion` = 120) THEN (`operaciones_mvtos`.`afectacion_real` * `afectacion`) ELSE 0 END)) AS `capital`,
+  SUM((CASE WHEN (`subclasificacion` = 140) THEN (`operaciones_mvtos`.`afectacion_real` * `afectacion`) ELSE 0 END)) AS `interes_normal`,
+SUM((CASE WHEN (`subclasificacion` = 141) THEN (`operaciones_mvtos`.`afectacion_real` * `afectacion`) ELSE 0 END)) AS `interes_moratorio`,
+SUM((CASE WHEN (`subclasificacion` = 0) THEN (`operaciones_mvtos`.`afectacion_real` * `afectacion`) ELSE 0 END)) AS `otros`,
+SUM((CASE WHEN (`subclasificacion` = 151) THEN (`operaciones_mvtos`.`afectacion_real` * `afectacion`) ELSE 0 END)) AS `impuesto`,
+
+SUM(`operaciones_mvtos`.`afectacion_real` * `afectacion`) AS `total`,
+SUM((CASE WHEN (`subclasificacion` = 120) THEN 1 ELSE 0 END)) AS `numero_pagos`
+
+FROM (`operaciones_mvtos`
+   JOIN `eacp_config_bases_de_integracion_miembros`
+     ON ((`operaciones_mvtos`.`tipo_operacion` = `eacp_config_bases_de_integracion_miembros`.`miembro`)))
+WHERE (`eacp_config_bases_de_integracion_miembros`.`codigo_de_base` = 15000)
+AND (`operaciones_mvtos`.`docto_afectado`=IDCredito)
+GROUP BY `operaciones_mvtos`.`docto_afectado`,`operaciones_mvtos`.`periodo_socio`
+
+	ORDER BY
+		`eacp_config_bases_de_integracion_miembros`.`codigo_de_base`,
+		`operaciones_mvtos`.`docto_afectado`,
+		`operaciones_mvtos`.`periodo_socio`
+
+) ;
+
+
+
+
+END$$
+
+DELIMITER ;
+
+
+-- --------------------------------
+-- - Procedimiento Fix montos cuando no se devengan credito
+-- - Por credito
+-- - Octubre 2022
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `proc_fix_devengados_by_cred`$$
+
+CREATE PROCEDURE `proc_fix_devengados_by_cred`(IDCredito BIGINT)
+
+BEGIN
+
+-- Actualizar Intereses Devengados y pagados
+
+UPDATE `creditos_montos` 
+INNER JOIN (
+
+SELECT   `tmp_creditos_abonos_parciales`.`docto_afectado` AS `credito`,
+         SUM(`tmp_creditos_abonos_parciales`.`capital` )  AS `capital`,
+         SUM(`tmp_creditos_abonos_parciales`.`interes_normal` )  AS `interes`,
+         SUM(`tmp_creditos_abonos_parciales`.`interes_moratorio` )  AS `moratorio`,
+         SUM(`tmp_creditos_abonos_parciales`.`otros` )  AS `otros`
+FROM     `tmp_creditos_abonos_parciales`
+GROUP BY `tmp_creditos_abonos_parciales`.`docto_afectado`
+) tt ON tt.`credito` = `creditos_montos`.`clave_de_credito` 
+SET
+`interes_n_dev` = tt.`interes`, 
+`interes_n_pag` = tt.`interes`,
+`interes_m_dev`= tt.`moratorio`,
+`interes_m_pag` = tt.`moratorio`
+WHERE `creditos_montos`.`clave_de_credito`=IDCredito;
+
+
+
+UPDATE `creditos_solicitud` 
+INNER JOIN (
+
+SELECT   `tmp_creditos_abonos_parciales`.`docto_afectado` AS `credito`,
+         SUM(`tmp_creditos_abonos_parciales`.`capital` )  AS `capital`,
+         SUM(`tmp_creditos_abonos_parciales`.`interes_normal` )  AS `interes`,
+         SUM(`tmp_creditos_abonos_parciales`.`interes_moratorio` )  AS `moratorio`,
+         SUM(`tmp_creditos_abonos_parciales`.`otros` )  AS `otros`
+FROM     `tmp_creditos_abonos_parciales`
+GROUP BY `tmp_creditos_abonos_parciales`.`docto_afectado`
+) tt ON tt.`credito` = `creditos_solicitud`.`numero_solicitud` 
+SET
+`interes_normal_devengado` = tt.`interes`, 
+`interes_normal_pagado` = tt.`interes`,
+`interes_moratorio_devengado`= tt.`moratorio`,
+`interes_moratorio_pagado` = tt.`moratorio`
+WHERE `creditos_solicitud`.`numero_solicitud`=IDCredito;
+
+-- Actualizar Interes normal
+
+
+UPDATE `creditos_montos` 
+INNER JOIN (
+
+SELECT   `letras`.`credito`,
+         SUM(`letras`.`letra_pends`)  AS `periodos_vencidos`,
+         SUM(`letras`.`interes_exigible`)  AS `interes`,
+         SUM(`letras`.`capital_exigible`)  AS `cap_exigible`,
+         SUM(`letras`.`interes_moratorio`) AS `moratorio`
+FROM     `letras`
+GROUP BY `letras`.`credito`
+
+) tt ON tt.`credito` = `creditos_montos`.`clave_de_credito` 
+SET
+
+`interes_n_corr` = tt.`interes`, 
+`interes_m_corr` = tt.`moratorio`,
+`periodo_pends`	= tt.`periodos_vencidos`,
+`capital_exigible` = tt.`cap_exigible`
+WHERE `creditos_montos`.`clave_de_credito`=IDCredito;
+
+END$$
+
+DELIMITER ;
+
+
+
+
+-- --------------------------------
+-- - Procedimiento Fix Nuevos Devengados
+-- - Por credito
+-- - Octubre 2022
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `proc_fix_nuevo_devengados`$$
+
+CREATE PROCEDURE `proc_fix_nuevo_devengados`()
+
+BEGIN
+
+
+UPDATE `creditos_plan_de_pagos` 
+SET
+`gtoscbza`= 0,
+`mora` = 0,
+`sdo_cap` = `capital`,
+`sdo_int` = `interes`;
+
+UPDATE `creditos_plan_de_pagos` 
+INNER JOIN (
+
+SELECT   `vw_letras_calculo`.`credito`,
+`vw_letras_calculo`.`parcialidad`,
+         `vw_letras_calculo`.`letra_pends`  AS `periodos_vencidos`,
+         `vw_letras_calculo`.`interes_exigible`  AS `interes`,
+         `vw_letras_calculo`.`capital_exigible`  AS `cap_exigible`,
+         `vw_letras_calculo`.`interes_moratorio` AS `moratorio`,
+         `vw_letras_calculo`.`gastos_de_cobranza`
+FROM     `vw_letras_calculo`
+
+) tt ON (tt.`credito` = `creditos_plan_de_pagos`.`clave_de_credito` AND tt.`parcialidad` = `creditos_plan_de_pagos`.`numero_de_parcialidad`)
+SET
+`gtoscbza`= tt.`gastos_de_cobranza`,
+`mora`= tt.`moratorio`,
+`sdo_cap` = tt.`cap_exigible`,
+`sdo_int` = tt.`interes`;
+
+
+INSERT `creditos_cargos_generados`(`credito`,`periodo`,`fecha`,`mora_devengado`,`penas_devengado`,`cobranza_devengado`,`bonificacion`,`bonificacion_es_tasa`)
+(
+SELECT   `vw_letras_calculo`.`credito`,
+		 `vw_letras_calculo`.`parcialidad`,
+		 CURDATE() AS `fecha`,
+         `vw_letras_calculo`.`interes_moratorio` AS `moratorio`,
+         0 AS  `penas`,
+         `vw_letras_calculo`.`gastos_de_cobranza`,
+         0 AS `bonificacion`,
+         0 AS `tasa_bonificacion`
+FROM     `vw_letras_calculo`
+WHERE (SELECT COUNT(*) FROM `creditos_cargos_generados` WHERE `credito`=`vw_letras_calculo`.`credito` AND `periodo`=`vw_letras_calculo`.`parcialidad`)<=0
+GROUP BY `vw_letras_calculo`.`credito`, `vw_letras_calculo`.`parcialidad`
+);
+
+
+-- Eliminar Estadisticos Vacios.
+
+DELETE `operaciones_recibos`
+FROM `operaciones_recibos`
+        LEFT JOIN
+    `vw_recibos_eliminables` ON `vw_recibos_eliminables`.`recibo` = `operaciones_recibos`.`idoperaciones_recibos`
+WHERE
+    `vw_recibos_eliminables`.`operaciones` <=0;
+    
+-- crear estadisticos de interes
+
+CALL `proc_crear_recibos_devengados`();
+
+-- crear Intereses Moratorio
+
+CALL `proc_crear_cargos_devengados`();
+
+
+END$$
+
+DELIMITER ;
+
+
+
+
+-- --------------------------------
+-- - Procedimiento crear recibo de Devengados
+-- - Octubre - 2022
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `proc_crear_recibos_devengados`$$
+
+CREATE PROCEDURE `proc_crear_recibos_devengados`()
+
+BEGIN
+
+INSERT INTO `operaciones_recibos` 
+(`idoperaciones_recibos`, `fecha_operacion`, `numero_socio`, `docto_afectado`,
+`tipo_docto`, `total_operacion`, `idusuario`, `observacion_recibo`, `cheque_afectador`, 
+`cadena_distributiva`, `tipo_pago`, `indice_origen`, `grupo_asociado`, `recibo_fiscal`, `sucursal`, `eacp`, `clave_de_moneda`,
+`unidades_en_moneda`, `origen_aml`, `archivo_fisico`, `persona_asociada`, `fecha_de_registro`, `periodo_de_documento`, `cuenta_bancaria`, 
+`montohist`, `tiempo`, `idtipocbza`, `idusuario_cbza`, `fecha_valor`, `f_ext`, `modified_at`, `fecha_caja`) 
+
+(SELECT NULL, `creditos_solicitud`.`fecha_ministracion`, `creditos_solicitud`.`numero_socio`,`creditos_solicitud`.`numero_solicitud`,
+51,0,1,'', '',
+'', 'ninguno',99,99,'',`creditos_solicitud`.`sucursal`,'EACP', 'MXN',
+0,0,'', 1,`creditos_solicitud`.`fecha_ministracion`,0,0,
+0, UNIX_TIMESTAMP(),1,1, `creditos_solicitud`.`fecha_ministracion`,'', CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+FROM `creditos_solicitud`
+LEFT JOIN (
+SELECT COUNT(`idoperaciones_recibos`) AS `existentes`, `docto_afectado` AS `credito` FROM `operaciones_recibos`
+WHERE `tipo_docto`=51 GROUP BY `docto_afectado`,`tipo_docto`
+) TX ON TX.`credito` = `creditos_solicitud`.`numero_solicitud`
+WHERE TX.`credito` IS NULL
+);
+
+
+END$$
+
+DELIMITER ;
+
+
+
+-- --------------------------------
+-- - Procedimiento crear Devengados, Mora y Gastos de Cobranza
+-- - Octubre - 2022
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `proc_crear_cargos_devengados`$$
+
+CREATE PROCEDURE `proc_crear_cargos_devengados`()
+
+BEGIN
+
+-- Crear Cargos de Mora
+
+
+INSERT INTO `operaciones_mvtos` 
+	(`idoperaciones_mvtos`, `fecha_operacion`, `fecha_afectacion`, `recibo_afectado`, `socio_afectado`, `docto_afectado`, `tipo_operacion`, `afectacion_real`, `valor_afectacion`, 
+	`fecha_vcto`, `estatus_mvto`, `periodo_socio`, `saldo_anterior`, `saldo_actual`, `idusuario`, `afectacion_estadistica`, `codigo_eacp`, `sucursal`)
+	(SELECT NULL, CURDATE(), CURDATE(), RRO.`recibo`, `persona`, `credito`, 432, `interes_moratorio`, 1, 
+	CURDATE(), 30, `periodo_socio`, `interes_moratorio`, `interes_moratorio`, 1, `interes_moratorio`, CS.`eacp`, CS.`sucursal` 
+	FROM `vw_letras_calculo`
+	INNER JOIN (
+		SELECT   `operaciones_recibos`.`idoperaciones_recibos` AS `recibo`,
+			 `operaciones_recibos`.`docto_afectado` AS `recibo_credito`
+		FROM     `operaciones_recibos`
+		WHERE    ( `operaciones_recibos`.`tipo_docto` = 51 )
+	) RRO ON  RRO.`recibo_credito` = `vw_letras_calculo`.`credito`
+	INNER JOIN `creditos_solicitud` CS ON CS.`numero_solicitud`=`vw_letras_calculo`.`credito`
+	LEFT JOIN (
+		SELECT COUNT(`idoperaciones_mvtos`) AS `operaciones`, `docto_afectado` AS `operacion_credito` FROM `operaciones_mvtos` WHERE `tipo_operacion`=432 AND `fecha_operacion`=CURDATE() GROUP BY `docto_afectado`
+	) ROPS ON ROPS.`operacion_credito` = `vw_letras_calculo`.`credito`
+	WHERE ROPS.`operaciones` IS NULL
+	);
+	
+
+-- Crear Cargos de Cobranza
+
+
+END$$
+
+DELIMITER ;
+
+
+
+-- --------------------------------
+-- - Funcion devuelve los gastos de cobranza por letra con frecuencia, MontoMensual, Fecha de Letra, Fecha De Corte
+-- - Noviembre/2022
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getMontoDeGtosCbzaPorLV2`$$
+
+CREATE FUNCTION `getMontoDeGtosCbzaPorLV2`(mFrecuencia INT(8), mMontoCbza DOUBLE(10,2), mFechaLetra DATE, mFechaCorte DATE) RETURNS DOUBLE(12,2)
+BEGIN
+	-- DECLARE NumMeses INT(4) DEFAULT 0;
+	DECLARE mFechaVcto DATE;
+	DECLARE mMtoGtos DOUBLE(12,2) DEFAULT 0;
+	
+	-- Obtener fecha de vencimiento por Letra
+	SET mFechaVcto = DATE_ADD(mFechaLetra, INTERVAL 1 DAY);
+	
+	IF mFechaCorte >= mFechaVcto THEN
+
+		IF mFrecuencia = 7 THEN
+			SET mMtoGtos = (mMontoCbza / 4);
+		ELSEIF mFrecuencia = 10 THEN
+			SET mMtoGtos = (mMontoCbza / 3);
+		ELSEIF mFrecuencia = 15 THEN
+			SET mMtoGtos = (mMontoCbza / 2);
+		ELSE
+			SET mMtoGtos = mMontoCbza;
+		END IF;
+	END IF;
+	
+	RETURN mMtoGtos;
+    END$$
+
+DELIMITER ;
+
+
 
