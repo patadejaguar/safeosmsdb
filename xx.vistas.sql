@@ -2658,7 +2658,8 @@ CDC.`suma_cuentas_comerciales`,
 TOPT.`nombre_origen` 							AS `origen`,
 CDP.`maximo_autorizado`,
 
-TRIM(CONCAT(`socios_general`.`apellidopaterno`, ' ',`socios_general`.`apellidomaterno`, ' ',`socios_general`.`nombrecompleto`)) AS `nombre_por_apellidos`
+TRIM(CONCAT(`socios_general`.`apellidopaterno`, ' ',`socios_general`.`apellidomaterno`, ' ',`socios_general`.`nombrecompleto`)) AS `nombre_por_apellidos`,
+`socios_general`.`fechaalta`					AS `fecha_de_registro`
 	
 FROM     `socios_general` 
 INNER JOIN `socios_aeconomica_dependencias` AS SAD  ON `socios_general`.`dependencia` = SAD.`idsocios_aeconomica_dependencias` 
