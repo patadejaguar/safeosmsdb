@@ -2752,7 +2752,7 @@ FROM `sistema_catalogo` WHERE `tabla_virtual` = 'cat_personas_origen'
 
 ) TOPT ON TOPT.`origen_persona` = `socios_general`.`codigo`
 
-ORDER BY `socios_general`.`fechaalta` DESC
+
 )$$
 
 DELIMITER ;
