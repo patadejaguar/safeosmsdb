@@ -6322,3 +6322,33 @@ GROUP BY `vw_letras_calculo`.`credito`, `vw_letras_calculo`.`parcialidad`
 END$$
 
 DELIMITER ;
+
+
+-- - --------------------------------
+-- - Funcion que devuelve los dias menores vencidos
+-- - Enero/2023
+-- - TODO: Faltan modulos
+-- - --------------------------------
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getDiasVencByF`$$
+
+CREATE FUNCTION `getDiasVencByF`( vFPago DATE, vFCorte DATE, vFLetra DATE ) RETURNS INT
+BEGIN
+	DECLARE vDias INT DEFAULT 0;
+	IF vFLetra < vFCorte THEN
+		IF vFPago > vFLetra THEN
+			SET vDias = DATEDIFF(vFCorte, vFPago);
+		ELSE
+			SET vDias = DATEDIFF(vFCorte, vFLetra);
+		END IF;
+	END IF;
+
+
+	RETURN vDias;
+END$$
+
+DELIMITER ;
+
+
+
