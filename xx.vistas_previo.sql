@@ -1074,8 +1074,8 @@ SELECT
 		SUM(IF((`tipo_operacion` = 413  AND `fecha_afectacion` > PRM.`fecha_corte`),`afectacion_real`,0)) 								AS `iva_nopagado`,
 		SUM(IF((`tipo_operacion` = 412  AND `fecha_afectacion` > PRM.`fecha_corte`),`afectacion_real`,0)) 								AS `ahorro_nopagado`,
 		SUM(IF(((`tipo_operacion` < 410 OR `tipo_operacion` > 413)  AND `fecha_afectacion` > PRM.`fecha_corte`) , `afectacion_real`,0)) AS `otros_nopagado`
-		,IF((`tipo_operacion` = 410 AND `periodo_socio`= (CS_.`ultimo_periodo_afectado`+1)),  MMC.`cargos_cbza`,0) 	AS `gastos_de_cobranza`
-		,IF((`tipo_operacion` = 410 AND `periodo_socio`= (CS_.`ultimo_periodo_afectado`+1)), ROUND(MMC.`cargos_cbza`*PRM.`tasa_iva`,2),0) 	AS `iva_gtos_cobranza`
+		,IF((`tipo_operacion` = 410 AND `periodo_socio`= (CS_.`ultimo_periodo_afectado`+1)),  (getMtoGtosCbzaMesDesdeF2(`fecha_afectacion`,CS_.`fecha_ultimo_mvto`, PRM.`fecha_corte`)),0) 	AS `gastos_de_cobranza`
+		,IF((`tipo_operacion` = 410 AND `periodo_socio`= (CS_.`ultimo_periodo_afectado`+1)), ROUND((getMtoGtosCbzaMesDesdeF2(`fecha_afectacion`,CS_.`fecha_ultimo_mvto`, PRM.`fecha_corte`))*PRM.`tasa_iva`,2),0) 	AS `iva_gtos_cobranza`
 		
 		FROM
 			`operaciones_mvtos` `operaciones_mvtos` 
@@ -2885,8 +2885,8 @@ SELECT
 		SUM(IF((BI_.`subclasificacion` = 412 AND `fecha_afectacion` > PRM.`fecha_corte`), (`afectacion_real` * BI_.`afectacion`),0)) 								AS `ahorro_nopagado`,
 		
 		SUM(IF((BI_.`subclasificacion` = 414 AND `fecha_afectacion` > PRM.`fecha_corte`), (`afectacion_real` * BI_.`afectacion`),0)) 			AS `otros_nopagado`,
-		IF((BI_.`subclasificacion` = 410 AND `periodo_socio`= (CS_.`ultimo_periodo_afectado`+1)),  MMC.`cargos_cbza`,0) 						AS `gastos_de_cobranza`,
-		IF((BI_.`subclasificacion` = 410 AND `periodo_socio`= (CS_.`ultimo_periodo_afectado`+1)), ROUND(MMC.`cargos_cbza`*PRM.`tasa_iva`,2),0) 	AS `iva_gtos_cobranza`,
+		IF((BI_.`subclasificacion` = 410 AND `periodo_socio`= (CS_.`ultimo_periodo_afectado`+1)),  (getMtoGtosCbzaMesDesdeF2(`fecha_afectacion`,CS_.`fecha_ultimo_mvto`, PRM.`fecha_corte`)),0) 						AS `gastos_de_cobranza`,
+		IF((BI_.`subclasificacion` = 410 AND `periodo_socio`= (CS_.`ultimo_periodo_afectado`+1)), ROUND((getMtoGtosCbzaMesDesdeF2(`fecha_afectacion`,CS_.`fecha_ultimo_mvto`, PRM.`fecha_corte`))*PRM.`tasa_iva`,2),0) 	AS `iva_gtos_cobranza`,
 		
 		MIN(IF((BI_.`subclasificacion` = 410 AND (`afectacion_real` * BI_.`afectacion`) >0),`periodo_socio`,CS_.`pagos_autorizados`))			AS `letra_minima`,
 		MAX(IF((BI_.`subclasificacion` = 410 AND (`afectacion_real` * BI_.`afectacion`) >0),`periodo_socio`,0))									AS `letra_maxima`,

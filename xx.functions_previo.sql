@@ -1594,8 +1594,8 @@ SELECT
 		SUM(IF((`tipo_operacion` = 413  AND `fecha_afectacion` > PRM.`fecha_corte`),`afectacion_real`,0)) 								AS `iva_nopagado`,
 		SUM(IF((`tipo_operacion` = 412  AND `fecha_afectacion` > PRM.`fecha_corte`),`afectacion_real`,0)) 								AS `ahorro_nopagado`,
 		SUM(IF(((`tipo_operacion` < 410 OR `tipo_operacion` > 413)  AND `fecha_afectacion` > PRM.`fecha_corte`) , `afectacion_real`,0)) AS `otros_nopagado`
-		,IF((`tipo_operacion` = 410 AND `periodo_socio`= (`creditos_solicitud`.`ultimo_periodo_afectado`+1)),  MMC.`cargos_cbza`,0) 	AS `gastos_de_cobranza`
-		,IF((`tipo_operacion` = 410 AND `periodo_socio`= (`creditos_solicitud`.`ultimo_periodo_afectado`+1)), ROUND(MMC.`cargos_cbza`*PRM.`tasa_iva`,2),0) 	AS `iva_gtos_cobranza`
+		,IF((`tipo_operacion` = 410 AND `periodo_socio`= (`creditos_solicitud`.`ultimo_periodo_afectado`+1)),  (getMtoGtosCbzaMesDesdeF2(`fecha_afectacion`,`creditos_solicitud`.`fecha_ultimo_mvto`, PRM.`fecha_corte`)),0) 	AS `gastos_de_cobranza`
+		,IF((`tipo_operacion` = 410 AND `periodo_socio`= (`creditos_solicitud`.`ultimo_periodo_afectado`+1)), ROUND((getMtoGtosCbzaMesDesdeF2(`fecha_afectacion`,`creditos_solicitud`.`fecha_ultimo_mvto`, PRM.`fecha_corte`))*PRM.`tasa_iva`,2),0) 	AS `iva_gtos_cobranza`
 
 		FROM
 			`operaciones_mvtos` `operaciones_mvtos` 
@@ -4546,13 +4546,19 @@ DROP FUNCTION IF EXISTS `getMtoGtosCbzaMes`$$
 CREATE FUNCTION `getMtoGtosCbzaMes`(FechaVcto DATE) RETURNS DOUBLE(12,2)
 BEGIN
 	DECLARE NumMeses INT(4) DEFAULT 0;
+	DECLARE NumDias INT(6) DEFAULT 0;
 	DECLARE MtoGtos DOUBLE(12,2) DEFAULT 0;
-	SET NumMeses = ( SELECT TIMESTAMPDIFF(MONTH, FechaVcto, CURDATE()) );
 	
+	SET NumMeses 	= ( SELECT TIMESTAMPDIFF(MONTH, FechaVcto, CURDATE()) );
+	SET NumDias 	= ( SELECT TIMESTAMPDIFF(DAY, FechaVcto, CURDATE()) );
 	 
 	IF ISNULL(NumMeses) THEN
 		SET NumMeses = 0;
-	ELSE
+	END IF;
+	IF NumMeses <= 0 THEN
+			SET NumMeses = 0;
+	END IF;
+	IF NumDias > 1 THEN
 		SET NumMeses = NumMeses + 1;
 	END IF;
 	
@@ -6369,6 +6375,7 @@ DROP FUNCTION IF EXISTS `getMtoGtosCbzaMesDesdeF2`$$
 CREATE FUNCTION `getMtoGtosCbzaMesDesdeF2`(FechaVcto DATE, FechaUltPago DATE, FechaCorte DATE) RETURNS DOUBLE(12,2)
 BEGIN
 	DECLARE NumMeses INT(4) DEFAULT 0;
+	DECLARE NumDias INT(6) DEFAULT 0;
 	DECLARE MtoGtos DOUBLE(12,2) DEFAULT 0;
 	DECLARE EsaFecha DATE DEFAULT FechaVcto;
 	
@@ -6379,17 +6386,19 @@ BEGIN
 	END IF;
 	
 	SET NumMeses = ( SELECT TIMESTAMPDIFF(MONTH, EsaFecha, FechaCorte) );
+	SET NumDias = ( SELECT TIMESTAMPDIFF(DAY, EsaFecha, FechaCorte) );
 	
 	 
 	IF ISNULL(NumMeses) THEN
 		SET NumMeses = 0;
-	ELSE
+	END IF;
+	IF NumMeses <= 0 THEN
+			SET NumMeses = 0;
+	END IF;
+	IF NumDias > 1 THEN
 		SET NumMeses = NumMeses + 1;
 	END IF;
-	
-	IF NumMeses < 0 THEN
-		SET NumMeses = 0;
-	END IF;
+
 	
 	SET MtoGtos = 300 * NumMeses;
 	
