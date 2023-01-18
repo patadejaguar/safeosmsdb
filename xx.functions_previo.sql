@@ -6345,8 +6345,58 @@ BEGIN
 		END IF;
 	END IF;
 
+	IF vDias < 0 THEN
+		SET vDias = 0;
+	END IF;
+	
 
 	RETURN vDias;
 END$$
 
 DELIMITER ;
+
+
+
+-- --------------------------------
+-- - Funcion devuelve los gastos de cobranza por mes, desde Fecha de Vcto, de Ult Pago, de Corte
+-- - Enero/2023
+-- - --------------------------------
+
+DELIMITER $$
+
+DROP FUNCTION IF EXISTS `getMtoGtosCbzaMesDesdeF2`$$
+
+CREATE FUNCTION `getMtoGtosCbzaMesDesdeF2`(FechaVcto DATE, FechaUltPago DATE, FechaCorte DATE) RETURNS DOUBLE(12,2)
+BEGIN
+	DECLARE NumMeses INT(4) DEFAULT 0;
+	DECLARE MtoGtos DOUBLE(12,2) DEFAULT 0;
+	DECLARE EsaFecha DATE DEFAULT FechaVcto;
+	
+	SET EsaFecha = FechaVcto;
+
+	IF FechaUltPago > FechaVcto THEN
+		SET EsaFecha = FechaUltPago;
+	END IF;
+	
+	SET NumMeses = ( SELECT TIMESTAMPDIFF(MONTH, EsaFecha, FechaCorte) );
+	
+	 
+	IF ISNULL(NumMeses) THEN
+		SET NumMeses = 0;
+	ELSE
+		SET NumMeses = NumMeses + 1;
+	END IF;
+	
+	IF NumMeses < 0 THEN
+		SET NumMeses = 0;
+	END IF;
+	
+	SET MtoGtos = 300 * NumMeses;
+	
+	RETURN MtoGtos;
+    END$$
+
+DELIMITER ;
+
+
+
