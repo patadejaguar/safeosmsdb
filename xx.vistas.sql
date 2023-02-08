@@ -986,7 +986,6 @@ FROM (`creditos_solicitud`
 DELIMITER ;
 
 -- -------------------------------------------------- Vista de Letras
-
 DELIMITER $$
 
 DROP VIEW IF EXISTS `letras`$$
@@ -1103,6 +1102,7 @@ SELECT
 )$$
 
 DELIMITER ;
+
 --
 -- 07-julio-2014
 -- Vista en tiempo real de letras pendientes, actualizado a julio/2016
@@ -1128,8 +1128,8 @@ SELECT
 		MIN(`fecha_afectacion`)											AS `fecha_de_pago`,
 		MAX(`fecha_afectacion`)											AS `fecha_de_vencimiento`,
 		
-		`creditos_solicitud`.`monto_solicitado` 						AS `monto_original`,
-		`creditos_solicitud`.`saldo_actual`     						AS `saldo_principal`,
+		CS_.`monto_solicitado` 						AS `monto_original`,
+		CS_.`saldo_actual`     						AS `saldo_principal`,
 		
 		SUM(IF(`tipo_operacion` = 410,`afectacion_real`,0))				AS `capital`,
 		SUM(IF(`tipo_operacion` = 411,`afectacion_real`,0))				AS `interes`,
@@ -1145,24 +1145,24 @@ SELECT
 		
 		ROUND(SUM(
 		IF((`tipo_operacion` = 410  AND `fecha_afectacion` <= PRM.`fecha_corte` AND `afectacion_real`>0),
-		((`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `fecha_afectacion`) * (`tasa_moratorio`) ) / PRM.`divisor_interes`)
+		((`afectacion_real` * getDiasVencByF(CS_.`fecha_ultimo_capital`, PRM.`fecha_corte`, `fecha_afectacion`) * (`tasa_moratorio`) ) / PRM.`divisor_interes`)
 		, 0 )),2) AS `interes_moratorio`,
 		
 		ROUND(SUM(
 		IF((`tipo_operacion` = 410  AND `fecha_afectacion` <= PRM.`fecha_corte` AND `afectacion_real`>0),
-		((`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `fecha_afectacion`) * (`tasa_moratorio`) ) / PRM.`divisor_interes`)
+		((`afectacion_real` * getDiasVencByF(CS_.`fecha_ultimo_capital`, PRM.`fecha_corte`, `fecha_afectacion`) * (`tasa_moratorio`) ) / PRM.`divisor_interes`)
 		, 0 )),2) AS `mora`,
 		
 		ROUND(
 		(SUM(
 		IF((`tipo_operacion` = 410  AND `fecha_afectacion` <= PRM.`fecha_corte` AND `afectacion_real`>0),
-		((`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `fecha_afectacion`) * (`tasa_moratorio`) ) / PRM.`divisor_interes`)
+		((`afectacion_real` * getDiasVencByF(CS_.`fecha_ultimo_capital`, PRM.`fecha_corte`, `fecha_afectacion`) * (`tasa_moratorio`) ) / PRM.`divisor_interes`)
 		, 0 ))*PRM.`tasa_iva`),2) AS `iva_moratorio`,
 		
 		IF(SUM(IF((`tipo_operacion` < 410 OR `tipo_operacion` > 413),0, `afectacion_real`))<=0,0,
 		MAX(
 		IF((`tipo_operacion` = 410  AND `fecha_afectacion` <= PRM.`fecha_corte` AND `afectacion_real`>0),
-		(DATEDIFF(PRM.`fecha_corte`, `fecha_afectacion`))
+		(getDiasVencByF(CS_.`fecha_ultimo_capital`, PRM.`fecha_corte`, `fecha_afectacion`))
 		, 0 ))
 		) AS `dias`,
 		
@@ -1176,13 +1176,13 @@ SELECT
 		
 		,ROUND(
 		(SUM(
-		IF((`tipo_operacion` = 410  AND `fecha_afectacion` <= PRM.`fecha_corte` AND `creditos_solicitud`.`pagos_autorizados`=`periodo_socio`),
-		((`creditos_solicitud`.`saldo_actual` * DATEDIFF(PRM.`fecha_corte`, `fecha_afectacion`) * (`creditos_solicitud`.`tasa_interes`) ) / PRM.`divisor_interes`)
+		IF((`tipo_operacion` = 410  AND `fecha_afectacion` <= PRM.`fecha_corte` AND CS_.`pagos_autorizados`=`periodo_socio`),
+		((CS_.`saldo_actual` * getDiasVencByF(CS_.`fecha_ultimo_capital`, PRM.`fecha_corte`, `fecha_afectacion`) * (CS_.`tasa_interes`) ) / PRM.`divisor_interes`)
 		, 0 )) ),2) AS `int_corriente`,
 		
 		ROUND(SUM(
 		IF((`tipo_operacion` = 410  AND `fecha_afectacion` <= PRM.`fecha_corte` AND `afectacion_real`>0),
-		((`afectacion_real` * DATEDIFF(PRM.`fecha_corte`, `fecha_afectacion`) * (`creditos_solicitud`.`tasa_interes`) ) / PRM.`divisor_interes`)
+		((`afectacion_real` * getDiasVencByF(CS_.`fecha_ultimo_capital`, PRM.`fecha_corte`, `fecha_afectacion`) * (CS_.`tasa_interes`) ) / PRM.`divisor_interes`)
 		, 0 )),2) AS `int_corriente_letra`
 		
 		,SUM(IF((`tipo_operacion` = 410  AND `fecha_afectacion` > PRM.`fecha_corte`),`afectacion_real`,0)) 								AS `capital_nopagado`,
@@ -1190,26 +1190,25 @@ SELECT
 		SUM(IF((`tipo_operacion` = 413  AND `fecha_afectacion` > PRM.`fecha_corte`),`afectacion_real`,0)) 								AS `iva_nopagado`,
 		SUM(IF((`tipo_operacion` = 412  AND `fecha_afectacion` > PRM.`fecha_corte`),`afectacion_real`,0)) 								AS `ahorro_nopagado`,
 		SUM(IF(((`tipo_operacion` < 410 OR `tipo_operacion` > 413)  AND `fecha_afectacion` > PRM.`fecha_corte`) , `afectacion_real`,0)) AS `otros_nopagado`
-		,IF((`tipo_operacion` = 410 AND `periodo_socio`= (`creditos_solicitud`.`ultimo_periodo_afectado`+1)),  MMC.`cargos_cbza`,0) 	AS `gastos_de_cobranza`
-		,IF((`tipo_operacion` = 410 AND `periodo_socio`= (`creditos_solicitud`.`ultimo_periodo_afectado`+1)), ROUND(MMC.`cargos_cbza`*PRM.`tasa_iva`,2),0) 	AS `iva_gtos_cobranza`
+		,IF((`tipo_operacion` = 410 AND `periodo_socio`= (CS_.`ultimo_periodo_afectado`+1)),  (getMtoGtosCbzaMesDesdeF2(`fecha_afectacion`,CS_.`fecha_ultimo_mvto`, PRM.`fecha_corte`)),0) 	AS `gastos_de_cobranza`
+		,IF((`tipo_operacion` = 410 AND `periodo_socio`= (CS_.`ultimo_periodo_afectado`+1)), ROUND((getMtoGtosCbzaMesDesdeF2(`fecha_afectacion`,CS_.`fecha_ultimo_mvto`, PRM.`fecha_corte`))*PRM.`tasa_iva`,2),0) 	AS `iva_gtos_cobranza`
 		
 		FROM
 			`operaciones_mvtos` `operaciones_mvtos` 
-				INNER JOIN `creditos_solicitud` `creditos_solicitud` 
-				ON `operaciones_mvtos`.`docto_afectado` = `creditos_solicitud`.
-				`numero_solicitud` 
+				INNER JOIN `creditos_solicitud` CS_ 
+				ON `operaciones_mvtos`.`docto_afectado` = CS_.`numero_solicitud` 
 					INNER JOIN `eacp_config_bases_de_integracion_miembros` 
 					`eacp_config_bases_de_integracion_miembros` 
 					ON `operaciones_mvtos`.`tipo_operacion` = 
 					`eacp_config_bases_de_integracion_miembros`.`miembro`
 		INNER JOIN ( SELECT getTasaIVAGeneral() AS `tasa_iva`, getDivisorDeInteres() AS `divisor_interes`,getFechaDeCorte() AS  `fecha_corte`) PRM
-		INNER JOIN (SELECT   `clave_de_credito`,`cargos_cbza` FROM `creditos_montos`) MMC ON MMC.`clave_de_credito` = `creditos_solicitud`.`numero_solicitud`
+		INNER JOIN (SELECT   `clave_de_credito`,`cargos_cbza` FROM `creditos_montos`) MMC ON MMC.`clave_de_credito` = CS_.`numero_solicitud`
 
 		WHERE (`eacp_config_bases_de_integracion_miembros`.`codigo_de_base` = 2601)
 		AND `operaciones_mvtos`.`tipo_operacion` != 420
 		AND `operaciones_mvtos`.`tipo_operacion` != 431
 		AND `operaciones_mvtos`.`tipo_operacion` != 146 /*gastos de cobranza*/ 
-		AND `creditos_solicitud`.`saldo_actual`  > 0
+		AND CS_.`saldo_actual`  > 0
 		-- AND `operaciones_mvtos`.`docto_afectado` != 200187901
 		GROUP BY `operaciones_mvtos`.`docto_afectado`,`operaciones_mvtos`.`periodo_socio`
 		ORDER BY
@@ -2753,16 +2752,9 @@ FROM `sistema_catalogo` WHERE `tabla_virtual` = 'cat_personas_origen'
 DELIMITER ;
 
 
--- - --------------------------------
--- - Vista de telefonos por persona
--- - Enero/2022
--- - --------------------------------
-
-	
 DELIMITER $$
 
 DROP VIEW IF EXISTS `vw_personas_telefonos`$$
--- DROP TABLE IF EXISTS `vw_captacion_ult_sdpm`$$
 
 CREATE
     VIEW `vw_personas_telefonos` 
@@ -2778,7 +2770,7 @@ SELECT
 	`socios_vivienda` `socios_vivienda`
 	WHERE
 	(`socios_vivienda`.`estado_actual`>0)
-	AND setNoMenorCero(CAST(`socios_vivienda`.`telefono_residencial` AS UNSIGNED))>0
+	AND setNoMenorCero(CAST(REM_NON_DIGIT(`socios_vivienda`.`telefono_residencial`) AS UNSIGNED))>0
 	UNION
 	SELECT
 	`socios_vivienda`.`socio_numero`,
@@ -2789,14 +2781,14 @@ SELECT
 	`socios_vivienda` `socios_vivienda`
 	WHERE
 	(`socios_vivienda`.`estado_actual`>0)
-	AND setNoMenorCero(CAST(`socios_vivienda`.`telefono_movil` AS UNSIGNED))>0
+	AND setNoMenorCero(CAST(REM_NON_DIGIT(`socios_vivienda`.`telefono_movil`) AS UNSIGNED))>0
 	UNION
 	SELECT   `socios_general`.`codigo`,
         TRIM(`socios_general`.`telefono_principal`),
         'sms',
         TRUE
 	FROM     `socios_general`
-	WHERE    setNoMenorCero(CAST(`socios_general`.`telefono_principal` AS UNSIGNED))>0
+	WHERE    setNoMenorCero(CAST(REM_NON_DIGIT(`socios_general`.`telefono_principal`) AS UNSIGNED))>0
 	UNION
 	SELECT   `personas_contacto`.`persona_id`,
          `personas_contacto`.`contacto`,
@@ -3001,8 +2993,8 @@ SELECT
 		SUM(IF((BI_.`subclasificacion` = 412 AND `fecha_afectacion` > PRM.`fecha_corte`), (`afectacion_real` * BI_.`afectacion`),0)) 								AS `ahorro_nopagado`,
 		
 		SUM(IF((BI_.`subclasificacion` = 414 AND `fecha_afectacion` > PRM.`fecha_corte`), (`afectacion_real` * BI_.`afectacion`),0)) 			AS `otros_nopagado`,
-		IF((BI_.`subclasificacion` = 410 AND `periodo_socio`= (CS_.`ultimo_periodo_afectado`+1)),  MMC.`cargos_cbza`,0) 						AS `gastos_de_cobranza`,
-		IF((BI_.`subclasificacion` = 410 AND `periodo_socio`= (CS_.`ultimo_periodo_afectado`+1)), ROUND(MMC.`cargos_cbza`*PRM.`tasa_iva`,2),0) 	AS `iva_gtos_cobranza`,
+		IF((BI_.`subclasificacion` = 410 AND `periodo_socio`= (CS_.`ultimo_periodo_afectado`+1)),  (getMtoGtosCbzaMesDesdeF2(`fecha_afectacion`,CS_.`fecha_ultimo_mvto`, PRM.`fecha_corte`)),0) 						AS `gastos_de_cobranza`,
+		IF((BI_.`subclasificacion` = 410 AND `periodo_socio`= (CS_.`ultimo_periodo_afectado`+1)), ROUND((getMtoGtosCbzaMesDesdeF2(`fecha_afectacion`,CS_.`fecha_ultimo_mvto`, PRM.`fecha_corte`))*PRM.`tasa_iva`,2),0) 	AS `iva_gtos_cobranza`,
 		
 		MIN(IF((BI_.`subclasificacion` = 410 AND (`afectacion_real` * BI_.`afectacion`) >0),`periodo_socio`,CS_.`pagos_autorizados`))			AS `letra_minima`,
 		MAX(IF((BI_.`subclasificacion` = 410 AND (`afectacion_real` * BI_.`afectacion`) >0),`periodo_socio`,0))									AS `letra_maxima`,
@@ -3032,7 +3024,6 @@ SELECT
 )$$
 
 DELIMITER ;
-
 
 
 
