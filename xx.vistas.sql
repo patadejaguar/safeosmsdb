@@ -3026,4 +3026,31 @@ SELECT
 DELIMITER ;
 
 
+-- - --------------------------------
+-- - Vista de comparacion operaciones vs plan de pagos
+-- - Marzo / 2023
+-- - --------------------------------
+
+DELIMITER $$
+DROP VIEW IF EXISTS `vw_diff_plan_pago_vs_operaciones`$$
+DROP TABLE IF EXISTS `vw_diff_plan_pago_vs_operaciones`$$
+
+CREATE VIEW `vw_diff_plan_pago_vs_operaciones` AS (
+
+SELECT `creditos_solicitud`.`numero_solicitud`, COUNT(`creditos_plan_de_pagos`.`plan_de_pago`) AS `plan_pagos`, `creditos_solicitud`.`pagos_autorizados`,
+MAX(`creditos_plan_de_pagos`.`numero_de_parcialidad`) AS `maximo`,
+
+(CAST(`creditos_solicitud`.`pagos_autorizados` AS SIGNED) - CAST( MAX(`creditos_plan_de_pagos`.`numero_de_parcialidad`) AS SIGNED)) AS `error_1`,
+(CAST(`creditos_solicitud`.`pagos_autorizados` AS SIGNED) - CAST( COUNT(`creditos_plan_de_pagos`.`plan_de_pago`) AS SIGNED)) AS `error_2`
+
+FROM     `creditos_solicitud` 
+INNER JOIN `creditos_plan_de_pagos`  ON `creditos_solicitud`.`numero_solicitud` = `creditos_plan_de_pagos`.`clave_de_credito` 
+GROUP BY `creditos_plan_de_pagos`.`clave_de_credito`
+HAVING error_1 != 0 OR error_2 != 0
+
+)
+$$
+
+DELIMITER ;
+
 
